@@ -20,6 +20,8 @@
 
 #include <glib.h>
 
+#if 0   // ditto in gi18n.h
+
 #include <libintl.h>
 #include <string.h>
 
@@ -32,5 +34,17 @@
 #define N_(String) (String)
 #define C_(Context,String) g_dpgettext (GETTEXT_PACKAGE, Context "\004" String, strlen (Context) + 1)
 #define NC_(Context, String) (String)
+
+#else
+
+#include <string.h>
+
+#define  _(String) ((char *) (String))
+#define Q_(String) String
+#define N_(String) (String)
+#define C_(Context,String) Context "\004" String
+#define NC_(Context, String) (String)
+
+#endif
 
 #endif  /* __G_I18N_LIB_H__ */
