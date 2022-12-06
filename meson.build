@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.73.3',
+  version : '2.74.1',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 0.60.0',
   default_options : [
@@ -2371,6 +2371,11 @@ if want_systemtap and enable_dtrace
   enable_systemtap = true
 endif
 
+common_test_env = [
+  'G_DEBUG=gc-friendly',
+  'G_ENABLE_DIAGNOSTIC=1',
+  'MALLOC_CHECK_=2',
+]
 test_timeout = 60
 test_timeout_slow = 180
 

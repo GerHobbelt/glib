@@ -333,8 +333,8 @@ g_object_notify_queue_thaw (GObject            *object,
   if (G_UNLIKELY (nqueue->freeze_count == 0))
     {
       G_UNLOCK (notify_lock);
-      g_warning ("%s: property-changed notification for %s(%p) is not frozen",
-                 G_STRFUNC, G_OBJECT_TYPE_NAME (object), object);
+      g_critical ("%s: property-changed notification for %s(%p) is not frozen",
+                  G_STRFUNC, G_OBJECT_TYPE_NAME (object), object);
       return;
     }
 
@@ -598,9 +598,9 @@ install_property_internal (GType       g_type,
 
   if (g_param_spec_pool_lookup (pspec_pool, pspec->name, g_type, FALSE))
     {
-      g_warning ("When installing property: type '%s' already has a property named '%s'",
-		 g_type_name (g_type),
-		 pspec->name);
+      g_critical ("When installing property: type '%s' already has a property named '%s'",
+		  g_type_name (g_type),
+		  pspec->name);
       g_param_spec_unref (pspec);
       return FALSE;
     }
@@ -1096,8 +1096,8 @@ g_object_class_override_property (GObjectClass *oclass,
 
   if (!overridden)
     {
-      g_warning ("%s: Can't find property to override for '%s::%s'",
-		 G_STRFUNC, G_OBJECT_CLASS_NAME (oclass), name);
+      g_critical ("%s: Can't find property to override for '%s::%s'",
+		  G_STRFUNC, G_OBJECT_CLASS_NAME (oclass), name);
       return;
     }
 
@@ -1586,10 +1586,10 @@ g_object_notify (GObject     *object,
 				    TRUE);
 
   if (!pspec)
-    g_warning ("%s: object class '%s' has no property named '%s'",
-	       G_STRFUNC,
-	       G_OBJECT_TYPE_NAME (object),
-	       property_name);
+    g_critical ("%s: object class '%s' has no property named '%s'",
+	        G_STRFUNC,
+	        G_OBJECT_TYPE_NAME (object),
+	        property_name);
   else
     g_object_notify_by_spec_internal (object, pspec);
 }
@@ -1766,7 +1766,8 @@ static inline void
 object_set_property (GObject             *object,
 		     GParamSpec          *pspec,
 		     const GValue        *value,
-		     GObjectNotifyQueue  *nqueue)
+		     GObjectNotifyQueue  *nqueue,
+		     gboolean             user_specified)
 {
   GTypeInstance *inst = (GTypeInstance *) object;
   GObjectClass *class;
@@ -1782,7 +1783,8 @@ object_set_property (GObject             *object,
 
   param_spec_follow_override (&pspec);
 
-  consider_issuing_property_deprecation_warning (pspec);
+  if (user_specified)
+    consider_issuing_property_deprecation_warning (pspec);
 
   pclass = G_PARAM_SPEC_GET_CLASS (pspec);
   if (g_value_type_compatible (G_VALUE_TYPE (value), pspec->value_type) &&
@@ -1799,19 +1801,19 @@ object_set_property (GObject             *object,
       g_value_init (&tmp_value, pspec->value_type);
 
       if (!g_value_transform (value, &tmp_value))
-        g_warning ("unable to set property '%s' of type '%s' from value of type '%s'",
-                   pspec->name,
-                   g_type_name (pspec->value_type),
-                   G_VALUE_TYPE_NAME (value));
+        g_critical ("unable to set property '%s' of type '%s' from value of type '%s'",
+                    pspec->name,
+                    g_type_name (pspec->value_type),
+                    G_VALUE_TYPE_NAME (value));
       else if (g_param_value_validate (pspec, &tmp_value) && !(pspec->flags & G_PARAM_LAX_VALIDATION))
         {
           gchar *contents = g_strdup_value_contents (value);
 
-          g_warning ("value \"%s\" of type '%s' is invalid or out of range for property '%s' of type '%s'",
-                     contents,
-                     G_VALUE_TYPE_NAME (value),
-                     pspec->name,
-                     g_type_name (pspec->value_type));
+          g_critical ("value \"%s\" of type '%s' is invalid or out of range for property '%s' of type '%s'",
+                      contents,
+                      G_VALUE_TYPE_NAME (value),
+                      pspec->name,
+                      g_type_name (pspec->value_type));
           g_free (contents);
         }
       else
@@ -2202,7 +2204,7 @@ g_object_new_with_custom_constructor (GObjectClass          *class,
   /* set remaining properties */
   for (i = 0; i < n_params; i++)
     if (!(params[i].pspec->flags & (G_PARAM_CONSTRUCT | G_PARAM_CONSTRUCT_ONLY)))
-      object_set_property (object, params[i].pspec, params[i].value, nqueue);
+      object_set_property (object, params[i].pspec, params[i].value, nqueue, TRUE);
 
   /* If nqueue is non-NULL then we are frozen.  Thaw it. */
   if (nqueue)
@@ -2252,6 +2254,7 @@ g_object_new_internal (GObjectClass          *class,
           const GValue *value;
           GParamSpec *pspec;
           guint j;
+          gboolean user_specified = FALSE;
 
           pspec = node->data;
           value = NULL; /* to silence gcc... */
@@ -2260,13 +2263,14 @@ g_object_new_internal (GObjectClass          *class,
             if (params[j].pspec == pspec)
               {
                 value = params[j].value;
+                user_specified = TRUE;
                 break;
               }
 
           if (value == NULL)
             value = g_param_spec_get_default_value (pspec);
 
-          object_set_property (object, pspec, value, nqueue);
+          object_set_property (object, pspec, value, nqueue, user_specified);
         }
     }
 
@@ -2279,7 +2283,7 @@ g_object_new_internal (GObjectClass          *class,
    */
   for (i = 0; i < n_params; i++)
     if (!(params[i].pspec->flags & (G_PARAM_CONSTRUCT | G_PARAM_CONSTRUCT_ONLY)))
-      object_set_property (object, params[i].pspec, params[i].value, nqueue);
+      object_set_property (object, params[i].pspec, params[i].value, nqueue, TRUE);
 
   if (nqueue)
     g_object_notify_queue_thaw (object, nqueue);
@@ -2610,7 +2614,7 @@ g_object_constructor (GType                  type,
 	  GParamSpec *pspec = construct_params->pspec;
 
 	  construct_params++;
-	  object_set_property (object, pspec, value, nqueue);
+	  object_set_property (object, pspec, value, nqueue, TRUE);
 	}
       g_object_notify_queue_thaw (object, nqueue);
       /* the notification queue is still frozen from g_object_init(), so
@@ -2635,20 +2639,20 @@ g_object_set_is_valid_property (GObject         *object,
 {
   if (G_UNLIKELY (pspec == NULL))
     {
-      g_warning ("%s: object class '%s' has no property named '%s'",
-                 G_STRFUNC, G_OBJECT_TYPE_NAME (object), property_name);
+      g_critical ("%s: object class '%s' has no property named '%s'",
+                  G_STRFUNC, G_OBJECT_TYPE_NAME (object), property_name);
       return FALSE;
     }
   if (G_UNLIKELY (!(pspec->flags & G_PARAM_WRITABLE)))
     {
-      g_warning ("%s: property '%s' of object class '%s' is not writable",
-                 G_STRFUNC, pspec->name, G_OBJECT_TYPE_NAME (object));
+      g_critical ("%s: property '%s' of object class '%s' is not writable",
+                  G_STRFUNC, pspec->name, G_OBJECT_TYPE_NAME (object));
       return FALSE;
     }
   if (G_UNLIKELY (((pspec->flags & G_PARAM_CONSTRUCT_ONLY) && !object_in_construction (object))))
     {
-      g_warning ("%s: construct property \"%s\" for object '%s' can't be set after construction",
-                 G_STRFUNC, pspec->name, G_OBJECT_TYPE_NAME (object));
+      g_critical ("%s: construct property \"%s\" for object '%s' can't be set after construction",
+                  G_STRFUNC, pspec->name, G_OBJECT_TYPE_NAME (object));
       return FALSE;
     }
   return TRUE;
@@ -2698,7 +2702,7 @@ g_object_setv (GObject       *object,
       if (!g_object_set_is_valid_property (object, pspec, names[i]))
         break;
 
-      object_set_property (object, pspec, &values[i], nqueue);
+      object_set_property (object, pspec, &values[i], nqueue, TRUE);
     }
 
   if (nqueue)
@@ -2750,13 +2754,13 @@ g_object_set_valist (GObject	 *object,
       G_VALUE_COLLECT_INIT2 (&value, vtab, pspec->value_type, var_args, G_VALUE_NOCOPY_CONTENTS, &error);
       if (error)
 	{
-	  g_warning ("%s: %s", G_STRFUNC, error);
+	  g_critical ("%s: %s", G_STRFUNC, error);
 	  g_free (error);
           g_value_unset (&value);
 	  break;
 	}
 
-      object_set_property (object, pspec, &value, nqueue);
+      object_set_property (object, pspec, &value, nqueue, TRUE);
 
       /* We open-code g_value_unset() here to avoid the
        * cost of looking up the GTypeValueTable again.
@@ -2780,14 +2784,14 @@ g_object_get_is_valid_property (GObject          *object,
 {
   if (G_UNLIKELY (pspec == NULL))
     {
-      g_warning ("%s: object class '%s' has no property named '%s'",
-                 G_STRFUNC, G_OBJECT_TYPE_NAME (object), property_name);
+      g_critical ("%s: object class '%s' has no property named '%s'",
+                  G_STRFUNC, G_OBJECT_TYPE_NAME (object), property_name);
       return FALSE;
     }
   if (G_UNLIKELY (!(pspec->flags & G_PARAM_READABLE)))
     {
-      g_warning ("%s: property '%s' of object class '%s' is not readable",
-                 G_STRFUNC, pspec->name, G_OBJECT_TYPE_NAME (object));
+      g_critical ("%s: property '%s' of object class '%s' is not readable",
+                  G_STRFUNC, pspec->name, G_OBJECT_TYPE_NAME (object));
       return FALSE;
     }
   return TRUE;
@@ -2889,7 +2893,7 @@ g_object_get_valist (GObject	 *object,
       G_VALUE_LCOPY (&value, var_args, 0, &error);
       if (error)
 	{
-	  g_warning ("%s: %s", G_STRFUNC, error);
+	  g_critical ("%s: %s", G_STRFUNC, error);
 	  g_free (error);
 	  g_value_unset (&value);
 	  break;
@@ -3057,10 +3061,10 @@ g_object_get_property (GObject	   *object,
         }
       else if (!g_value_type_transformable (pspec->value_type, G_VALUE_TYPE (value)))
         {
-          g_warning ("%s: can't retrieve property '%s' of type '%s' as value of type '%s'",
-                     G_STRFUNC, pspec->name,
-                     g_type_name (pspec->value_type),
-                     G_VALUE_TYPE_NAME (value));
+          g_critical ("%s: can't retrieve property '%s' of type '%s' as value of type '%s'",
+                      G_STRFUNC, pspec->name,
+                      g_type_name (pspec->value_type),
+                      G_VALUE_TYPE_NAME (value));
           g_object_unref (object);
           return;
         }
@@ -3172,7 +3176,7 @@ g_object_connect (gpointer     _object,
 				 G_CONNECT_SWAPPED | G_CONNECT_AFTER);
       else
 	{
-	  g_warning ("%s: invalid signal spec \"%s\"", G_STRFUNC, signal_spec);
+	  g_critical ("%s: invalid signal spec \"%s\"", G_STRFUNC, signal_spec);
 	  break;
 	}
       signal_spec = va_arg (var_args, gchar*);
@@ -3229,17 +3233,17 @@ g_object_disconnect (gpointer     _object,
 	}
       else
 	{
-	  g_warning ("%s: invalid signal spec \"%s\"", G_STRFUNC, signal_spec);
+	  g_critical ("%s: invalid signal spec \"%s\"", G_STRFUNC, signal_spec);
 	  break;
 	}
 
       if ((mask & G_SIGNAL_MATCH_ID) &&
 	  !g_signal_parse_name (signal_spec, G_OBJECT_TYPE (object), &sid, &detail, FALSE))
-	g_warning ("%s: invalid signal name \"%s\"", G_STRFUNC, signal_spec);
+	g_critical ("%s: invalid signal name \"%s\"", G_STRFUNC, signal_spec);
       else if (!g_signal_handlers_disconnect_matched (object, mask | (detail ? G_SIGNAL_MATCH_DETAIL : 0),
 						      sid, detail,
 						      NULL, (gpointer)callback, data))
-	g_warning ("%s: signal handler %p(%p) is not connected", G_STRFUNC, callback, data);
+	g_critical ("%s: signal handler %p(%p) is not connected", G_STRFUNC, callback, data);
       signal_spec = va_arg (var_args, gchar*);
     }
   va_end (var_args);
@@ -3353,7 +3357,7 @@ g_object_weak_unref (GObject    *object,
     }
   G_UNLOCK (weak_refs_mutex);
   if (!found_one)
-    g_warning ("%s: couldn't find weak ref %p(%p)", G_STRFUNC, notify, data);
+    g_critical ("%s: couldn't find weak ref %p(%p)", G_STRFUNC, notify, data);
 }
 
 /**
@@ -3727,7 +3731,7 @@ g_object_remove_toggle_ref (GObject       *object,
   if (found_one)
     g_object_unref (object);
   else
-    g_warning ("%s: couldn't find toggle ref %p(%p)", G_STRFUNC, notify, data);
+    g_critical ("%s: couldn't find toggle ref %p(%p)", G_STRFUNC, notify, data);
 }
 
 /**

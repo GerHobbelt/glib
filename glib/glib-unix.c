@@ -108,6 +108,17 @@ g_unix_open_pipe (int     *fds,
     ecode = pipe2 (fds, pipe2_flags);
     if (ecode == -1 && errno != ENOSYS)
       return g_unix_set_error_from_errno (error, errno);
+    /* Don't reassign pipes to stdin, stdout, stderr if closed meanwhile */
+    else if (fds[0] < 3 || fds[1] < 3)
+      {
+        int old_fds[2] = { fds[0], fds[1] };
+        gboolean result = g_unix_open_pipe (fds, flags, error);
+        close (old_fds[0]);
+        close (old_fds[1]);
+
+        if (!result)
+          g_unix_set_error_from_errno (error, errno);
+      }
     else if (ecode == 0)
       return TRUE;
     /* Fall through on -ENOSYS, we must be running on an old kernel */
@@ -116,6 +127,19 @@ g_unix_open_pipe (int     *fds,
   ecode = pipe (fds);
   if (ecode == -1)
     return g_unix_set_error_from_errno (error, errno);
+  /* Don't reassign pipes to stdin, stdout, stderr if closed meanwhile */
+  else if (fds[0] < 3 || fds[1] < 3)
+    {
+      int old_fds[2] = { fds[0], fds[1] };
+      gboolean result = g_unix_open_pipe (fds, flags, error);
+      close (old_fds[0]);
+      close (old_fds[1]);
+
+      if (!result)
+        g_unix_set_error_from_errno (error, errno);
+
+      return result;
+    }
 
   if (flags == 0)
     return TRUE;
@@ -205,11 +229,11 @@ g_unix_set_fd_nonblocking (gint       fd,
  *
  * For example, an effective use of this function is to handle `SIGTERM`
  * cleanly; flushing any outstanding files, and then calling
- * g_main_loop_quit ().  It is not safe to do any of this a regular
- * UNIX signal handler; your handler may be invoked while malloc() or
- * another library function is running, causing reentrancy if you
- * attempt to use it from the handler.  None of the GLib/GObject API
- * is safe against this kind of reentrancy.
+ * g_main_loop_quit().  It is not safe to do any of this from a regular
+ * UNIX signal handler; such a handler may be invoked while malloc() or
+ * another library function is running, causing reentrancy issues if the
+ * handler attempts to use those functions.  None of the GLib/GObject
+ * API is safe against this kind of reentrancy.
  *
  * The interaction of this source when combined with native UNIX
  * functions like sigprocmask() is not defined.
