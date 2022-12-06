@@ -58,9 +58,6 @@ gio_tests = {
   },
   'converter-stream' : {},
   'credentials' : {},
-  'cxx' : {
-    'source' : ['cxx.cpp'],
-  },
   'data-input-stream' : {},
   'data-output-stream' : {},
   'error': {},
@@ -129,6 +126,14 @@ gio_tests = {
   'win32-appinfo' : {},
 }
 
+if have_cxx
+  gio_tests += {
+    'cxx' : {
+      'source' : ['cxx.cpp'],
+    },
+  }
+endif
+
 test_extra_programs = {
   'gdbus-connection-flush-helper' : {},
   'gdbus-testserver' : {},
@@ -143,6 +148,10 @@ test_env = environment()
 test_env.set('G_TEST_SRCDIR', meson.current_source_dir())
 test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
 test_env.set('GIO_MODULE_DIR', '')
+
+if host_system != 'windows' and not glib_have_cocoa
+  test_env.set('GIO_LAUNCH_DESKTOP', gio_launch_desktop.full_path())
+endif
 
 # Check for libdbus1 - Optional - is only used in the GDBus test cases
 # 1.2.14 required for dbus_message_set_serial
@@ -191,6 +200,7 @@ if host_machine.system() != 'windows'
   gio_tests += {
     'file' : {},
     'gdbus-peer-object-manager' : {},
+    'gdbus-sasl' : {},
     'live-g-file' : {},
     'resolver-parsing' : {'dependencies' : [network_libs]},
     'socket-address' : {},

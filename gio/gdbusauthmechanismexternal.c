@@ -40,6 +40,7 @@ struct _GDBusAuthMechanismExternalPrivate
   gboolean is_client;
   gboolean is_server;
   GDBusAuthMechanismState state;
+  gboolean empty_data_sent;
 };
 
 static gint                     mechanism_get_priority              (void);
@@ -67,6 +68,7 @@ static gchar                   *mechanism_server_get_reject_reason  (GDBusAuthMe
 static void                     mechanism_server_shutdown           (GDBusAuthMechanism   *mechanism);
 static GDBusAuthMechanismState  mechanism_client_get_state          (GDBusAuthMechanism   *mechanism);
 static gchar                   *mechanism_client_initiate           (GDBusAuthMechanism   *mechanism,
+                                                                     GDBusConnectionFlags  conn_flags,
                                                                      gsize                *out_initial_response_len);
 static void                     mechanism_client_data_receive       (GDBusAuthMechanism   *mechanism,
                                                                      const gchar          *data,
@@ -200,14 +202,24 @@ data_matches_credentials (const gchar  *data,
   if (credentials == NULL)
     goto out;
 
-  if (data == NULL || data_len == 0)
-    goto out;
-
 #if defined(G_OS_UNIX)
   {
     gint64 alleged_uid;
     gchar *endp;
 
+    /* If we were unable to find out the uid, then nothing
+     * can possibly match it.  */
+    if (g_credentials_get_unix_user (credentials, NULL) == (uid_t) -1)
+      goto out;
+
+    /* An empty authorization identity means we want to be
+     * whatever identity the out-of-band credentials say we have
+     * (RFC 4422 appendix A.1). This effectively matches any uid. */
+    if (data == NULL || data_len == 0)
+      {
+        match = TRUE;
+        goto out;
+      }
     /* on UNIX, this is the uid as a string in base 10 */
     alleged_uid = g_ascii_strtoll (data, &endp, 10);
     if (*endp == '\0')
@@ -253,7 +265,9 @@ mechanism_server_initiate (GDBusAuthMechanism   *mechanism,
     }
   else
     {
-      m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_WAITING_FOR_DATA;
+      /* The initial-response optimization was not used, so we need to
+       * send an empty challenge to prompt the client to respond. */
+      m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_HAVE_DATA_TO_SEND;
     }
 }
 
@@ -288,12 +302,22 @@ mechanism_server_data_send (GDBusAuthMechanism   *mechanism,
 
   g_return_val_if_fail (G_IS_DBUS_AUTH_MECHANISM_EXTERNAL (mechanism), NULL);
   g_return_val_if_fail (m->priv->is_server && !m->priv->is_client, NULL);
-  g_return_val_if_fail (m->priv->state == G_DBUS_AUTH_MECHANISM_STATE_HAVE_DATA_TO_SEND, NULL);
 
-  /* can never end up here because we are never in the HAVE_DATA_TO_SEND state */
-  g_assert_not_reached ();
+  if (out_data_len)
+    *out_data_len = 0;
 
-  return NULL;
+  if (m->priv->empty_data_sent)
+    {
+      /* We have already sent an empty data response.
+         Reject the connection.  */
+      m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_REJECTED;
+      return NULL;
+    }
+
+  m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_WAITING_FOR_DATA;
+  m->priv->empty_data_sent = TRUE;
+
+  return g_strdup ("");
 }
 
 static gchar *
@@ -337,38 +361,51 @@ mechanism_client_get_state (GDBusAuthMechanism   *mechanism)
 
 static gchar *
 mechanism_client_initiate (GDBusAuthMechanism   *mechanism,
+                           GDBusConnectionFlags  conn_flags,
                            gsize                *out_initial_response_len)
 {
   GDBusAuthMechanismExternal *m = G_DBUS_AUTH_MECHANISM_EXTERNAL (mechanism);
   gchar *initial_response = NULL;
-#if defined(G_OS_UNIX)
-  GCredentials *credentials;
-#endif
 
   g_return_val_if_fail (G_IS_DBUS_AUTH_MECHANISM_EXTERNAL (mechanism), NULL);
   g_return_val_if_fail (!m->priv->is_server && !m->priv->is_client, NULL);
 
   m->priv->is_client = TRUE;
-  m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_REJECTED;
+  m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_WAITING_FOR_DATA;
 
   *out_initial_response_len = 0;
 
-  /* return the uid */
+  if (conn_flags & G_DBUS_CONNECTION_FLAGS_CROSS_NAMESPACE)
+    {
+      /* If backwards-compatibility with GDBus servers < 2.73.3 is not a
+       * concern, we do not send an initial response, because there is
+       * no way to express an empty authorization identity this way.
+       * Instead, we'll reply to the server's first (empty) challenge
+       * with an empty authorization identity in our first response.  */
+      g_debug ("Using cross-namespace EXTERNAL authentication (this will deadlock if server is GDBus < 2.73.3)");
+    }
+  else
+    {
+      /* Send the Unix uid or Windows SID as an initial response.
+       * This is the only thing that is interoperable with GDBus 2.73.3
+       * servers. */
 #if defined(G_OS_UNIX)
-  credentials = _g_dbus_auth_mechanism_get_credentials (mechanism);
-  g_assert (credentials != NULL);
+      GCredentials *credentials;
 
-  initial_response = g_strdup_printf ("%" G_GINT64_FORMAT, (gint64) g_credentials_get_unix_user (credentials, NULL));
+      credentials = _g_dbus_auth_mechanism_get_credentials (mechanism);
+      g_assert (credentials != NULL);
+
+      initial_response = g_strdup_printf ("%" G_GINT64_FORMAT, (gint64) g_credentials_get_unix_user (credentials, NULL));
 #elif defined(G_OS_WIN32)
-  initial_response = _g_win32_current_process_sid_string (NULL);
+      initial_response = _g_win32_current_process_sid_string (NULL);
 #else
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wcpp"
-#warning Dont know how to send credentials on this OS. The EXTERNAL D-Bus authentication mechanism will not work.
-#pragma GCC diagnostic pop
+      /* GDBus < 2.73.3 servers can't have worked on this platform anyway,
+       * so it isn't a regression to behave as though
+       * G_DBUS_CONNECTION_FLAGS_CROSS_NAMESPACE had been set. */
+      g_debug ("Unknown platform, cannot use initial response in EXTERNAL");
 #endif
-#endif
+    }
+
   if (initial_response)
     {
       m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_ACCEPTED;
@@ -388,8 +425,9 @@ mechanism_client_data_receive (GDBusAuthMechanism   *mechanism,
   g_return_if_fail (m->priv->is_client && !m->priv->is_server);
   g_return_if_fail (m->priv->state == G_DBUS_AUTH_MECHANISM_STATE_WAITING_FOR_DATA);
 
-  /* can never end up here because we are never in the WAITING_FOR_DATA state */
-  g_assert_not_reached ();
+  /* The server sent us a challenge, which should normally
+   * be empty.  We respond with our authorization identity.  */
+  m->priv->state = G_DBUS_AUTH_MECHANISM_STATE_HAVE_DATA_TO_SEND;
 }
 
 static gchar *
@@ -402,10 +440,11 @@ mechanism_client_data_send (GDBusAuthMechanism   *mechanism,
   g_return_val_if_fail (m->priv->is_client && !m->priv->is_server, NULL);
   g_return_val_if_fail (m->priv->state == G_DBUS_AUTH_MECHANISM_STATE_HAVE_DATA_TO_SEND, NULL);
 
-  /* can never end up here because we are never in the HAVE_DATA_TO_SEND state */
-  g_assert_not_reached ();
-
-  return NULL;
+  /* We respond to the server's challenge by sending our
+   * authorization identity, which is the empty string, meaning
+   * whoever the out-of-band credentials say we are.  */
+  *out_data_len = 0;
+  return g_strdup ("");
 }
 
 static void

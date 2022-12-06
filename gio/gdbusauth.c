@@ -417,6 +417,7 @@ hexdecode (const gchar  *str,
 static GDBusAuthMechanism *
 client_choose_mech_and_send_initial_response (GDBusAuth           *auth,
                                               GCredentials        *credentials_that_were_sent,
+                                              GDBusConnectionFlags conn_flags,
                                               const gchar* const  *supported_auth_mechs,
                                               GPtrArray           *attempted_auth_mechs,
                                               GDataOutputStream   *dos,
@@ -507,6 +508,7 @@ client_choose_mech_and_send_initial_response (GDBusAuth           *auth,
 
   initial_response_len = 0;
   initial_response = _g_dbus_auth_mechanism_client_initiate (mech,
+                                                             conn_flags,
                                                              &initial_response_len);
 #if 0
   g_printerr ("using auth mechanism with name '%s' of type '%s' with initial response '%s'\n",
@@ -556,6 +558,7 @@ typedef enum
 gchar *
 _g_dbus_auth_run_client (GDBusAuth     *auth,
                          GDBusAuthObserver     *observer,
+                         GDBusConnectionFlags conn_flags,
                          GDBusCapabilityFlags offered_capabilities,
                          GDBusCapabilityFlags *out_negotiated_capabilities,
                          GCancellable  *cancellable,
@@ -573,6 +576,9 @@ _g_dbus_auth_run_client (GDBusAuth     *auth,
   GDBusAuthMechanism *mech;
   ClientState state;
   GDBusCapabilityFlags negotiated_capabilities;
+
+  g_return_val_if_fail ((conn_flags & G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT), NULL);
+  g_return_val_if_fail (!(conn_flags & G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_SERVER), NULL);
 
   debug_print ("CLIENT: initiating");
 
@@ -667,6 +673,7 @@ _g_dbus_auth_run_client (GDBusAuth     *auth,
           g_free (line);
           mech = client_choose_mech_and_send_initial_response (auth,
                                                                credentials,
+                                                               conn_flags,
                                                                (const gchar* const *) supported_auth_mechs,
                                                                attempted_auth_mechs,
                                                                dos,
@@ -783,13 +790,13 @@ _g_dbus_auth_run_client (GDBusAuth     *auth,
           if (line == NULL)
             goto out;
           debug_print ("CLIENT: WaitingForData, read='%s'", line);
-          if (g_str_has_prefix (line, "DATA "))
+          if (g_str_equal (line, "DATA") || g_str_has_prefix (line, "DATA "))
             {
               gchar *encoded;
               gchar *decoded_data;
               gsize decoded_data_len = 0;
 
-              encoded = g_strdup (line + 5);
+              encoded = g_strdup (line + 4);
               g_free (line);
               g_strstrip (encoded);
               decoded_data = hexdecode (encoded, &decoded_data_len, error);
@@ -807,11 +814,21 @@ _g_dbus_auth_run_client (GDBusAuth     *auth,
                 {
                   gchar *data;
                   gsize data_len;
-                  gchar *encoded_data;
+
                   data = _g_dbus_auth_mechanism_client_data_send (mech, &data_len);
-                  encoded_data = _g_dbus_hexencode (data, data_len);
-                  s = g_strdup_printf ("DATA %s\r\n", encoded_data);
-                  g_free (encoded_data);
+
+                  if (data_len == 0)
+                    {
+                      s = g_strdup ("DATA\r\n");
+                    }
+                  else
+                    {
+                      gchar *encoded_data = _g_dbus_hexencode (data, data_len);
+
+                      s = g_strdup_printf ("DATA %s\r\n", encoded_data);
+                      g_free (encoded_data);
+                    }
+
                   g_free (data);
                   debug_print ("CLIENT: writing '%s'", s);
                   if (!g_data_output_stream_put_string (dos, s, cancellable, error))
@@ -1209,13 +1226,21 @@ _g_dbus_auth_run_server (GDBusAuth              *auth,
                         gsize data_len;
 
                         data = _g_dbus_auth_mechanism_server_data_send (mech, &data_len);
+
                         if (data != NULL)
                           {
-                            gchar *encoded_data;
+                            if (data_len == 0)
+                              {
+                                s = g_strdup ("DATA\r\n");
+                              }
+                            else
+                              {
+                                gchar *encoded_data = _g_dbus_hexencode (data, data_len);
 
-                            encoded_data = _g_dbus_hexencode (data, data_len);
-                            s = g_strdup_printf ("DATA %s\r\n", encoded_data);
-                            g_free (encoded_data);
+                                s = g_strdup_printf ("DATA %s\r\n", encoded_data);
+                                g_free (encoded_data);
+                              }
+
                             g_free (data);
 
                             debug_print ("SERVER: writing '%s'", s);
@@ -1255,13 +1280,13 @@ _g_dbus_auth_run_server (GDBusAuth              *auth,
           debug_print ("SERVER: WaitingForData, read '%s'", line);
           if (line == NULL)
             goto out;
-          if (g_str_has_prefix (line, "DATA "))
+          if (g_str_equal (line, "DATA") || g_str_has_prefix (line, "DATA "))
             {
               gchar *encoded;
               gchar *decoded_data;
               gsize decoded_data_len = 0;
 
-              encoded = g_strdup (line + 5);
+              encoded = g_strdup (line + 4);
               g_free (line);
               g_strstrip (encoded);
               decoded_data = hexdecode (encoded, &decoded_data_len, error);
