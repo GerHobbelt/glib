@@ -792,7 +792,7 @@ glib_have_os_x_9_or_later = false
 glib_have_carbon = false
 glib_have_cocoa = false
 if host_system == 'darwin'
-  add_languages('objc')
+  add_languages('objc', native: false, required: true)
   objcc = meson.get_compiler('objc')
 
   add_project_arguments(objcc.get_supported_arguments(warning_objc_args), language: 'objc')
@@ -1839,6 +1839,18 @@ if cc.get_id() == 'msvc' or cc.get_id() == 'clang-cl' or cc.links(atomictest, na
     # __sync_bool_compare_and_swap but doesn't define
     # __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4
     glib_conf.set('__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4', true)
+  endif
+
+  if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
+    sync_swap_test = '''
+      int main() {
+        int atomic = 2;
+        __sync_swap (&atomic, 2);
+        return 0;
+      }
+    '''
+
+    glib_conf.set('__GCC_HAVE_SYNC_SWAP', cc.links(sync_swap_test, name : 'sync swap'))
   endif
 else
   have_atomic_lock_free = false

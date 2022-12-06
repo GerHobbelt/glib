@@ -1,3 +1,5 @@
+subdir('performance')
+
 marshalers_h = custom_target('marshalers_h',
   output : 'marshalers.h',
   input : 'marshalers.list',
@@ -31,6 +33,7 @@ gobject_tests = {
   'accumulator' : {
     'source' : ['accumulator.c', marshalers_h, marshalers_c],
   },
+  'basics-gobject' : {},
   'boxed' : {},
   'cxx' : {
     'source' : ['cxx.cpp'],
@@ -101,6 +104,7 @@ endif
 
 python_tests = [
   'genmarshal.py',
+  'gobject-query.py',
   'mkenums.py',
 ]
 
