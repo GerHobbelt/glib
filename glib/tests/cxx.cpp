@@ -23,7 +23,12 @@
 #error G_CXX_STD_VERSION is not defined
 #endif
 
+#ifdef G_C_STD_VERSION
+#error G_C_STD_VERSION should be undefined in C programs
+#endif
+
 G_STATIC_ASSERT (G_CXX_STD_VERSION);
+G_STATIC_ASSERT (!G_C_STD_CHECK_VERSION (99));
 
 #if G_CXX_STD_VERSION >= 199711L
   G_STATIC_ASSERT (G_CXX_STD_CHECK_VERSION (98));
@@ -139,6 +144,8 @@ test_typeof (void)
   MyObject *obj = g_rc_box_new0 (MyObject);
   MyObject *obj2 = g_rc_box_acquire (obj);
   g_assert_true (obj2 == obj);
+
+  G_STATIC_ASSERT (sizeof (glib_typeof (*obj)) == sizeof (glib_typeof (*obj2)));
 
   MyObject *obj3 = g_atomic_pointer_get (&obj2);
   g_assert_true (obj3 == obj);
