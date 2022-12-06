@@ -121,13 +121,16 @@ test_unicode_normalize (void)
 	goto next;
       if (buffer->str[0] == '@') /* Part */
 	{
-	  fprintf (stderr, "\nProcessing %s\n", buffer->str + 1);
+	  g_test_message ("Processing %s", buffer->str + 1);
 	  goto next;
 	}
 
       columns = g_strsplit (buffer->str, ";", -1);
       if (!columns[0])
-	goto next;
+        {
+          g_strfreev (columns);
+          goto next;
+        }
 
       process_one (line, columns);
       g_strfreev (columns);
