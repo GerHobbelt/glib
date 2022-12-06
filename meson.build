@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.75.0',
+  version : '2.75.1',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 0.60.0',
   default_options : [
@@ -477,6 +477,8 @@ if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
     '-Wduplicated-branches',
     '-Wimplicit-fallthrough',
     '-Wmisleading-indentation',
+    '-Wmissing-field-initializers',
+    '-Wnonnull',
     '-Wunused',
     # Due to maintained deprecated code, we do not want to see unused parameters
     '-Wno-unused-parameter',

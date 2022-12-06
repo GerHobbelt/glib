@@ -42,6 +42,10 @@ giotypefuncs_inc = custom_target(
   input : gio_headers + [gioenumtypes_h] + gobject_install_headers,
   command: [gengiotypefuncs_prog, '@OUTPUT@', '@INPUT@'])
 
+if glib_build_shared
+  subdir('modules')
+endif
+
 #  Test programs buildable on all platforms
 gio_tests = {
   'appmonitor' : {
@@ -66,7 +70,9 @@ gio_tests = {
   'file-thumbnail' : {},
   'fileattributematcher' : {},
   'filter-streams' : {},
-  'giomodule' : {},
+  'giomodule' : {
+    'depends' : glib_build_shared ? [libtestmodulea, libtestmoduleb] : [],
+  },
   'gsubprocess' : {
     'suite': host_system == 'windows' ? ['flaky'] : [],
     'extra_programs': ['gsubprocess-testprog'],
@@ -126,6 +132,7 @@ gio_tests = {
   'tls-bindings' : {'extra_sources' : ['gtesttlsbackend.c']},
   'unix-fd' : {},
   'gdbus-address-get-session' : {
+    'extra_programs': host_system != 'windows' ? ['dbus-launch'] : [],
     # FIXME: https://gitlab.gnome.org/GNOME/glib/-/issues/1392
     'can_fail' : host_system == 'darwin',
   },
@@ -384,7 +391,10 @@ if host_machine.system() != 'windows'
         'extra_programs': extra_programs,
       },
       'gdbus-method-invocation' : {'extra_sources' : extra_sources},
-      'gdbus-names' : {'extra_sources' : extra_sources},
+      'gdbus-names' : {
+        'extra_sources' : extra_sources,
+        'extra_programs' : ['fake-service-name'],
+      },
       'gdbus-proxy' : {
         'extra_sources' : extra_sources,
         'extra_programs': extra_programs,
@@ -490,6 +500,7 @@ if host_machine.system() != 'windows'
         'c_args' : ['-DSRCDIR="@0@"'.format(meson.current_source_dir()),
                     '-DTEST_LOCALE_PATH="@0@"'.format(test_mo_dir)],
         'install' : false,
+        'depends' : glib_compile_schemas,
       },
     }
   endif
@@ -689,8 +700,11 @@ if installed_tests_enabled
   endforeach
 endif
 
-if meson.can_run_host_binaries()
+# FIXME: Work around Meson not automatically using exe_wrapper around glib_compile_resources
+# https://github.com/mesonbuild/meson/issues/11029 
+if not meson.is_cross_build()
 
+  resource_plugin = []
   compiler_type = '--compiler=@0@'.format(cc.get_id())
 
   if glib_build_shared
@@ -706,7 +720,8 @@ if meson.can_run_host_binaries()
                  '--c-name', '_g_plugin',
                  '@INPUT@'])
 
-    shared_module('resourceplugin', 'resourceplugin.c', plugin_resources_c,
+    resource_plugin += shared_module('resourceplugin',
+      sources: ['resourceplugin.c', plugin_resources_c],
       link_args : export_dynamic_ldflags,
       dependencies : common_gio_tests_deps,
       install_dir : installed_tests_execdir,
@@ -899,6 +914,7 @@ if meson.can_run_host_binaries()
   gio_tests += {
     'resources' : {
       'extra_sources' : resources_extra_sources,
+      'depends' : resource_plugin,
     },
   }
 endif
@@ -1038,7 +1054,3 @@ if installed_tests_enabled
 endif
 
 subdir('services')
-
-if glib_build_shared
-  subdir('modules')
-endif

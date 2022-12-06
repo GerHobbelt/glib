@@ -13,7 +13,7 @@ cache:
 variables:
   FEDORA_IMAGE: "registry.gitlab.gnome.org/gnome/glib/fedora:v19"
   COVERITY_IMAGE: "registry.gitlab.gnome.org/gnome/glib/coverity:v7"
-  DEBIAN_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable:v13"
+  DEBIAN_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable:v14"
   MINGW_IMAGE: "registry.gitlab.gnome.org/gnome/glib/mingw:v9"
   MESON_TEST_TIMEOUT_MULTIPLIER: 4
   G_MESSAGES_DEBUG: all
@@ -72,6 +72,17 @@ sh-and-py-check:
       - "**/*.py"
       - "**/*.sh"
 
+style-check-mandatory:
+  extends: .only-default
+  image: $DEBIAN_IMAGE
+  stage: style-check
+  allow_failure: false
+  script:
+    - .gitlab-ci/run-reuse.sh
+  variables:
+    # The submodules are needed for `reuse lint` to work properly
+    GIT_SUBMODULE_STRATEGY: "normal"
+
 fedora-x86_64:
   extends:
     - .build-linux
@@ -80,7 +91,7 @@ fedora-x86_64:
   stage: build
   needs: []
   variables:
-    CFLAGS: "-coverage -ftest-coverage -fprofile-arcs -Wnonnull"
+    CFLAGS: "-coverage -ftest-coverage -fprofile-arcs"
   script:
     - meson ${MESON_COMMON_OPTIONS}
             --werror
@@ -128,8 +139,6 @@ debian-stable-x86_64:
   image: $DEBIAN_IMAGE
   stage: build
   needs: []
-  variables:
-    CFLAGS: "-Wnonnull"
   script:
     - meson ${MESON_COMMON_OPTIONS}
             --werror
@@ -139,7 +148,6 @@ debian-stable-x86_64:
             --libdir=lib
             -Dsystemtap=true
             -Ddtrace=true
-            -Dinstalled_tests=true
             _build
     - ninja -C _build
     - .gitlab-ci/run-tests.sh
