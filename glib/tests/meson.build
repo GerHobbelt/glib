@@ -52,6 +52,7 @@ glib_tests = {
   'macros' : {},
   'mainloop' : {},
   'mappedfile' : {},
+  'mapping' : {},
   'markup' : {},
   'markup-parse' : {},
   'markup-collect' : {},
@@ -116,6 +117,7 @@ glib_tests = {
   'test-printf' : {},
   'thread' : {},
   'thread-pool' : {},
+  'thread-pool-slow' : {'suite' : ['slow']},
   'timeout' : {},
   'timer' : {},
   'tree' : {},
@@ -314,7 +316,7 @@ executable('testing-helper', 'testing-helper.c',
 )
 
 # some testing of gtester functionality
-if not meson.is_cross_build() and host_system != 'windows'
+if meson.can_run_host_binaries() and host_system != 'windows'
   xmllint = find_program('xmllint', required: false)
   if xmllint.found()
     tmpsample_xml = custom_target('tmpsample.xml',
