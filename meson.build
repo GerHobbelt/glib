@@ -1,5 +1,5 @@
 project('glib', 'c', 'cpp',
-  version : '2.73.1',
+  version : '2.73.2',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 0.60.0',
   default_options : [
@@ -484,6 +484,7 @@ if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
     '-Werror=declaration-after-statement',
     '-Werror=implicit-function-declaration',
     '-Werror=missing-prototypes',
+    '-Werror=pointer-sign',
   ]
   warning_cxx_args = warning_common_args
   warning_objc_args = warning_c_args
@@ -871,6 +872,20 @@ if cc.links('''#include <sys/eventfd.h>
                  return 0;
                }''', name : 'eventfd(2) system call')
   glib_conf.set('HAVE_EVENTFD', 1)
+endif
+
+# Check for pidfd_open(2)
+if cc.links('''#include <sys/syscall.h>
+               #include <sys/wait.h>
+               #include <linux/wait.h>
+               #include <unistd.h>
+               int main (int argc, char ** argv) {
+                 siginfo_t child_info = { 0, };
+                 syscall (SYS_pidfd_open, 0, 0);
+                 waitid (P_PIDFD, 0, &child_info, WEXITED | WNOHANG);
+                 return 0;
+               }''', name : 'pidfd_open(2) system call')
+  glib_conf.set('HAVE_PIDFD', 1)
 endif
 
 # Check for __uint128_t (gcc) by checking for 128-bit division
@@ -2003,37 +2018,38 @@ else
   libiconv = dependency('iconv')
 endif
 
-pcre = dependency('libpcre', version: '>= 8.31', required : false) # Should check for Unicode support, too. FIXME
-if not pcre.found()
+pcre2 = dependency('libpcre2-8', version: '>= 10.32', required : false)
+if not pcre2.found()
   if cc.get_id() == 'msvc' or cc.get_id() == 'clang-cl'
-  # MSVC: Search for the PCRE library by the configuration, which corresponds
-  # to the output of CMake builds of PCRE.  Note that debugoptimized
+  # MSVC: Search for the PCRE2 library by the configuration, which corresponds
+  # to the output of CMake builds of PCRE2.  Note that debugoptimized
   # is really a Release build with .PDB files.
     if vs_crt == 'debug'
-      pcre = cc.find_library('pcred', required : false)
+      pcre2 = cc.find_library('pcre2d-8', required : false)
     else
-      pcre = cc.find_library('pcre', required : false)
+      pcre2 = cc.find_library('pcre2-8', required : false)
     endif
   endif
 endif
 
 # Try again with the fallback
-if not pcre.found()
-  pcre = dependency('libpcre', required : true, fallback : ['pcre', 'pcre_dep'])
-  use_pcre_static_flag = true
+if not pcre2.found()
+  pcre2 = dependency('libpcre2-8', required : true, fallback : ['pcre2', 'libpcre2_8'])
+  use_pcre2_static_flag = true
 elif host_system == 'windows'
-  pcre_static = cc.links('''#define PCRE_STATIC
-                            #include <pcre.h>
-                            int main() {
-                              void *p = NULL;
-                              pcre_free(p);
-                              return 0;
-                            }''',
-                         dependencies: pcre,
-                         name : 'Windows system PCRE is a static build')
-  use_pcre_static_flag = pcre_static
+  pcre2_static = cc.links('''#define PCRE2_STATIC
+                             #define PCRE2_CODE_UNIT_WIDTH 8
+                             #include <pcre2.h>
+                             int main() {
+                               void *p = NULL;
+                               pcre2_code_free(p);
+                               return 0;
+                             }''',
+                         dependencies: pcre2,
+                         name : 'Windows system PCRE2 is a static build')
+  use_pcre2_static_flag = pcre2_static
 else
-  use_pcre_static_flag = false
+  use_pcre2_static_flag = false
 endif
 
 # Import the gvdb sources as a subproject to avoid having the copylib in-tree
