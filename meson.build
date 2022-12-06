@@ -276,9 +276,6 @@ if host_system == 'windows'
 elif host_system == 'cygwin'
   glib_os = '''#define G_OS_UNIX
 #define G_WITH_CYGWIN'''
-elif host_system in ['darwin', 'ios']
-  glib_os = '''#define G_OS_UNIX
-#define G_OS_DARWIN'''
 else
   glib_os = '#define G_OS_UNIX'
 endif
@@ -2372,6 +2369,20 @@ install_data('m4macros/glib-2.0.m4', 'm4macros/glib-gettext.m4', 'm4macros/gsett
   install_dir : get_option('datadir') / 'aclocal',
   install_tag : 'devel',
 )
+
+# Check whether we support overriding the invalid parameter handler on Windows for _get_osfhandle(),
+# g_fsync() (i.e. _commit()), etc
+if host_system == 'windows'
+  if cc.has_function('_set_thread_local_invalid_parameter_handler', prefix: '#include <stdlib.h>')
+    glib_conf.set('HAVE__SET_THREAD_LOCAL_INVALID_PARAMETER_HANDLER', 1)
+  endif
+  if cc.has_function('_set_invalid_parameter_handler', prefix: '#include <stdlib.h>')
+    glib_conf.set('HAVE__SET_INVALID_PARAMETER_HANDLER', 1)
+  endif
+  if cc.has_header_symbol('crtdbg.h', '_CrtSetReportMode')
+    glib_conf.set('HAVE__CRT_SET_REPORT_MODE', 1)
+  endif
+endif
 
 configure_file(output : 'config.h', configuration : glib_conf)
 
