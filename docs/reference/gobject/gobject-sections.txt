@@ -185,9 +185,6 @@ G_TYPE_RESERVED_GLIB_LAST
 G_TYPE_RESERVED_BSE_FIRST
 G_TYPE_RESERVED_BSE_LAST
 G_TYPE_RESERVED_USER_FIRST
-
-<SUBSECTION Private>
-GOBJECT_VAR
 </SECTION>
 
 <SECTION>
@@ -420,6 +417,7 @@ G_TYPE_OPTION_GROUP
 G_TYPE_URI
 G_TYPE_TREE
 G_TYPE_PATTERN_SPEC
+G_TYPE_BOOKMARK_FILE
 
 <SUBSECTION Standard>
 G_TYPE_IS_BOXED
@@ -456,6 +454,7 @@ g_option_group_get_type
 g_uri_get_type
 g_tree_get_type
 g_pattern_spec_get_type
+g_bookmark_file_get_type
 </SECTION>
 
 <SECTION>
