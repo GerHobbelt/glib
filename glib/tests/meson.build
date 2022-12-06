@@ -159,8 +159,19 @@ if have_cxx
   glib_tests += {
     'cxx' : {
       'source' : ['cxx.cpp'],
+      'suite': ['cpp'],
     }
   }
+
+  foreach std, arg: cxx_standards
+    glib_tests += {
+      'cxx-@0@'.format(std) : {
+        'source' : ['cxx.cpp'],
+        'suite' : ['cpp'],
+        'cpp_args' : [arg],
+      },
+    }
+  endforeach
 endif
 
 if cc.get_id() != 'msvc'
@@ -193,7 +204,7 @@ else
     'include' : {},
     'unix' : {},
   }
-  if have_rtld_next
+  if have_rtld_next and get_option('default_library') != 'static'
     glib_tests += {
       'gutils-user-database' : {
         'depends' : [
@@ -253,6 +264,7 @@ test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
 
 test_deps = [libm, thread_dep, libglib_dep]
 test_cargs = ['-DG_LOG_DOMAIN="GLib"', '-UG_DISABLE_ASSERT']
+test_cpp_args = test_cargs
 
 foreach test_name, extra_args : glib_tests
   source = extra_args.get('source', test_name + '.c')
@@ -274,6 +286,7 @@ foreach test_name, extra_args : glib_tests
 
   exe = executable(test_name, source,
     c_args : test_cargs + extra_args.get('c_args', []),
+    cpp_args : test_cpp_args + extra_args.get('cpp_args', []),
     link_args : extra_args.get('link_args', []),
     dependencies : test_deps + extra_args.get('dependencies', []),
     install_dir: installed_tests_execdir,
