@@ -202,6 +202,7 @@ else
             name_prefix : '',
             dependencies: libdl_dep,
             install_dir : installed_tests_execdir,
+            install_tag : 'tests',
             install: installed_tests_enabled,
           ),
         ],
@@ -230,10 +231,20 @@ if installed_tests_enabled
     'NormalizationTest.txt',
     'pages.ini',
     install_dir : installed_tests_execdir,
+    install_tag : 'tests',
   )
-  install_subdir('bookmarks', install_dir : installed_tests_execdir)
-  install_subdir('markups', install_dir : installed_tests_execdir)
-  install_subdir('time-zones', install_dir : installed_tests_execdir)
+  install_subdir('bookmarks',
+    install_dir : installed_tests_execdir,
+    install_tag : 'tests',
+  )
+  install_subdir('markups',
+    install_dir : installed_tests_execdir,
+    install_tag : 'tests',
+  )
+  install_subdir('time-zones',
+    install_dir : installed_tests_execdir,
+    install_tag : 'tests',
+  )
 endif
 
 test_env = environment(common_test_env)
@@ -256,6 +267,7 @@ foreach test_name, extra_args : glib_tests
       input: installed_tests_template_tap,
       output: test_name + '.test',
       install_dir: installed_tests_metadir,
+      install_tag: 'tests',
       configuration: test_conf
     )
   endif
@@ -265,6 +277,7 @@ foreach test_name, extra_args : glib_tests
     link_args : extra_args.get('link_args', []),
     dependencies : test_deps + extra_args.get('dependencies', []),
     install_dir: installed_tests_execdir,
+    install_tag: 'tests',
     install: install,
   )
 
@@ -282,6 +295,7 @@ if installed_tests_enabled
   install_data(
     'utf8.txt',
     install_dir : installed_tests_execdir,
+    install_tag : 'tests',
   )
 endif
 
@@ -293,6 +307,7 @@ executable('assert-msg-test', ['assert-msg-test.c'],
   c_args : test_cargs,
   dependencies :  test_deps,
   install_dir : installed_tests_execdir,
+  install_tag : 'tests',
   install : installed_tests_enabled,
   win_subsystem : extra_args.get('win_subsystem', 'console'),
 )
@@ -310,6 +325,7 @@ foreach test_name : python_tests
     install_data(
       files(test_name),
       install_dir: installed_tests_execdir,
+      install_tag: 'tests',
       install_mode: 'rwxr-xr-x',
     )
 
@@ -321,6 +337,7 @@ foreach test_name : python_tests
       input: installed_tests_template_tap,
       output: test_name + '.test',
       install_dir: installed_tests_metadir,
+      install_tag: 'tests',
       configuration: test_conf,
     )
   endif
@@ -330,6 +347,7 @@ executable('spawn-path-search-helper', 'spawn-path-search-helper.c',
   c_args : test_cargs,
   dependencies : test_deps,
   install_dir: installed_tests_execdir,
+  install_tag: 'tests',
   install: installed_tests_enabled,
 )
 
@@ -337,6 +355,7 @@ executable('spawn-test-helper', 'spawn-test-helper.c',
   c_args : test_cargs,
   dependencies : test_deps,
   install_dir: installed_tests_execdir,
+  install_tag: 'tests',
   install: installed_tests_enabled,
 )
 
@@ -345,6 +364,7 @@ executable('test-spawn-echo', 'test-spawn-echo.c',
   c_args : test_cargs,
   dependencies : test_deps,
   install_dir: installed_tests_execdir,
+  install_tag: 'tests',
   install: installed_tests_enabled,
 )
 
@@ -354,12 +374,14 @@ if host_machine.system() == 'windows'
     c_args : test_cargs,
     dependencies : test_deps,
     install_dir: installed_tests_execdir,
+    install_tag: 'tests',
     install: installed_tests_enabled,
   )
   executable('spawn-test-win32-gui', 'spawn-test-win32-gui.c',
     c_args : test_cargs,
     dependencies : test_deps,
     install_dir: installed_tests_execdir,
+    install_tag: 'tests',
     install: installed_tests_enabled,
     win_subsystem: 'windows',
   )
@@ -369,6 +391,7 @@ executable('testing-helper', 'testing-helper.c',
   c_args : test_cargs,
   dependencies : test_deps,
   install_dir: installed_tests_execdir,
+  install_tag: 'tests',
   install: installed_tests_enabled,
 )
 
