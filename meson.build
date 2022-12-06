@@ -83,7 +83,7 @@ glib_libdir = join_paths(glib_prefix, get_option('libdir'))
 glib_libexecdir = join_paths(glib_prefix, get_option('libexecdir'))
 glib_datadir = join_paths(glib_prefix, get_option('datadir'))
 glib_pkgdatadir = join_paths(glib_datadir, 'glib-2.0')
-glib_includedir = join_paths(glib_prefix, get_option('includedir'))
+glib_includedir = join_paths(glib_prefix, get_option('includedir'), 'glib-2.0')
 if get_option('gio_module_dir') != ''
   glib_giomodulesdir = join_paths(glib_prefix, get_option('gio_module_dir'))
 else
@@ -235,6 +235,9 @@ if host_system == 'windows'
 elif host_system == 'cygwin'
   glib_os = '''#define G_OS_UNIX
 #define G_WITH_CYGWIN'''
+elif host_system in ['darwin', 'ios']
+  glib_os = '''#define G_OS_UNIX
+#define G_OS_DARWIN'''
 else
   glib_os = '#define G_OS_UNIX'
 endif
@@ -461,7 +464,6 @@ if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
     # Due to pervasive use of things like GPOINTER_TO_UINT(), we do not support
     # building with -Wbad-function-cast.
     '-Wno-bad-function-cast',
-    '-Werror=declaration-after-statement',
     '-Werror=implicit-function-declaration',
     '-Werror=missing-prototypes',
     '-Werror=pointer-sign',
@@ -2362,7 +2364,7 @@ install_data('m4macros/glib-2.0.m4', 'm4macros/glib-gettext.m4', 'm4macros/gsett
 configure_file(output : 'config.h', configuration : glib_conf)
 
 if host_system == 'windows'
-  install_headers([ 'msvc_recommended_pragmas.h' ], subdir : 'glib-2.0')
+  install_headers([ 'msvc_recommended_pragmas.h' ], install_dir : glib_includedir)
 endif
 
 if get_option('man')

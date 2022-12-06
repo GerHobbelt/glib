@@ -6,6 +6,8 @@ g_module_have_dlerror = 0
 
 g_module_impl = ''
 
+g_module_includedir = glib_includedir / 'gmodule'
+
 # On Windows force native WIN32 shared lib loader
 if host_system == 'windows'
   g_module_impl = 'G_MODULE_IMPL_WIN32'
@@ -64,15 +66,16 @@ gmoduleconf_h = configure_file(input : 'gmoduleconf.h.in',
 gmodule_h = files('gmodule.h')
 gmodule_c = files('gmodule.c')
 
-install_headers([gmodule_h], subdir : 'glib-2.0')
+install_headers([gmodule_h], install_dir : glib_includedir)
 
-gvisibility_h = configure_file(
+gvisibility_h = custom_target(
   output: 'gmodule-visibility.h',
   command: [gen_visibility_macros, meson.project_version(), 'visibility-macros', 'GMODULE', '@OUTPUT@'],
+  install: true,
+  install_dir: g_module_includedir,
 )
-install_headers(gvisibility_h, subdir : 'glib-2.0/gmodule')
 
-gmodule_sources = [gmodule_c]
+gmodule_sources = [gmodule_c, gvisibility_h]
 if host_system == 'windows'
   gmodule_win_rc = configure_file(
     input: 'gmodule.rc.in',
@@ -131,6 +134,7 @@ pkg.generate(libraries : [libgmodule, export_dynamic_ldflags],
 
 libgmodule_dep = declare_dependency(link_with : libgmodule,
   include_directories : [gmoduleinc],
+  sources : [gvisibility_h],
   dependencies : [libglib_dep])
 
 meson.override_dependency('gmodule-no-export-2.0', libgmodule_dep)
