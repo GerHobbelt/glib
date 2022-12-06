@@ -16,11 +16,9 @@ subdir('gobject')
 subdir('refcount')
 
 tests = {
-  'gio-test' : {},
   'slice-threadinit' : {
     'dependencies' : [libgthread_dep],
   },
-  'thread-test' : {},
   'module-test-library' : {
     'dependencies' : [libgmodule_dep],
     'export_dynamic' : true,
@@ -41,12 +39,6 @@ test_extra_programs = {
   },
   'assert-msg-test' : {},
 }
-
-if host_machine.system() == 'windows'
-  test_extra_programs += {
-    'spawn-test-win32-gui' : {'win_subsystem' : 'windows'}
-  }
-endif
 
 module_suffix = []
 # Keep the autotools convention for shared module suffix because GModule

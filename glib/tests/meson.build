@@ -45,6 +45,7 @@ glib_tests = {
   'hmac' : {},
   'hook' : {},
   'hostutils' : {},
+  'io-channel-basic' : {},
   'io-channel' : {},
   'keyfile' : {},
   'list' : {},
@@ -108,7 +109,9 @@ glib_tests = {
   'sort' : {},
   'spawn-multithreaded' : {},
   'spawn-path-search' : {},
-  'spawn-singlethread' : {},
+  'spawn-singlethread' : {
+    'dependencies' : [winsock2],
+  },
   'spawn-test' : {},
   'strfuncs' : {},
   'string' : {},
@@ -116,6 +119,7 @@ glib_tests = {
   'testing' : {},
   'test-printf' : {},
   'thread' : {},
+  'thread-deprecated' : {},
   'thread-pool' : {},
   'thread-pool-slow' : {'suite' : ['slow']},
   'timeout' : {},
@@ -305,6 +309,13 @@ if host_machine.system() == 'windows'
     dependencies : test_deps,
     install_dir: installed_tests_execdir,
     install: installed_tests_enabled,
+  )
+  executable('spawn-test-win32-gui', 'spawn-test-win32-gui.c',
+    c_args : test_cargs,
+    dependencies : test_deps,
+    install_dir: installed_tests_execdir,
+    install: installed_tests_enabled,
+    win_subsystem: 'windows',
   )
 endif
 

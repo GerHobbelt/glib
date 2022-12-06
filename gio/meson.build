@@ -354,7 +354,6 @@ if host_system != 'windows'
   unix_sources = files(
     'gfiledescriptorbased.c',
     'giounix-private.c',
-    'gunixfdlist.c',
     'gunixfdmessage.c',
     'gunixmount.c',
     'gunixmounts.c',
@@ -574,6 +573,7 @@ gio_sources = files(
   'gdtlsserverconnection.c',
   'gunionvolumemonitor.c',
   'gunixconnection.c',
+  'gunixfdlist.c',
   'gunixcredentialsmessage.c',
   'gunixsocketaddress.c',
   'gvfs.c',
@@ -978,7 +978,7 @@ glib_compile_resources = executable('glib-compile-resources',
 # Cannot override those programs in cross compilation case because they are
 # native executables that cannot be run on the build machine.
 # See https://gitlab.gnome.org/GNOME/glib/issues/1859.
-if not meson.can_run_host_binaries()
+if meson.can_run_host_binaries()
   meson.override_find_program('glib-compile-schemas', glib_compile_schemas)
   meson.override_find_program('glib-compile-resources', glib_compile_resources)
   meson.override_find_program('gio-querymodules', gio_querymodules)
