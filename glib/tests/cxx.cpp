@@ -1,6 +1,8 @@
 /*
  * Copyright 2020 Xavier Claessens
  *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -158,6 +160,30 @@ test_atomic_int_exchange (void)
 #endif
 }
 
+G_NO_INLINE
+static gboolean
+do_not_inline_this (void)
+{
+  return FALSE;
+}
+
+G_ALWAYS_INLINE
+static inline gboolean
+do_inline_this (void)
+{
+  return TRUE;
+}
+
+static void
+test_inline_no_inline_macros (void)
+{
+  g_test_message ("Test that G_NO_INLINE and G_ALWAYS_INLINE functions "
+                  "can be compiled with C++ compiler");
+
+  g_assert_false (do_not_inline_this ());
+  g_assert_true (do_inline_this ());
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -174,6 +200,7 @@ main (int argc, char *argv[])
   g_test_add_func ("/C++/atomic-int-compare-and-exchange-full", test_atomic_int_compare_and_exchange_full);
   g_test_add_func ("/C++/atomic-pointer-exchange", test_atomic_pointer_exchange);
   g_test_add_func ("/C++/atomic-int-exchange", test_atomic_int_exchange);
+  g_test_add_func ("/C++/inlined-not-inlined-functions", test_inline_no_inline_macros);
 
   return g_test_run ();
 }
