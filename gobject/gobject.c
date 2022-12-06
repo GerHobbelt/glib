@@ -478,6 +478,7 @@ g_object_base_class_init (GObjectClass *class)
 
   /* reset instance specific fields and methods that don't get inherited */
   class->construct_properties = pclass ? g_slist_copy (pclass->construct_properties) : NULL;
+  class->n_construct_properties = g_slist_length (class->construct_properties);
   class->get_property = NULL;
   class->set_property = NULL;
 }
@@ -491,6 +492,7 @@ g_object_base_class_finalize (GObjectClass *class)
 
   g_slist_free (class->construct_properties);
   class->construct_properties = NULL;
+  class->n_construct_properties = 0;
   list = g_param_spec_pool_list_owned (pspec_pool, G_OBJECT_CLASS_TYPE (class));
   for (node = list; node; node = node->next)
     {
@@ -627,14 +629,20 @@ validate_and_install_class_property (GObjectClass *class,
   if (install_property_internal (oclass_type, property_id, pspec))
     {
       if (pspec->flags & (G_PARAM_CONSTRUCT | G_PARAM_CONSTRUCT_ONLY))
-        class->construct_properties = g_slist_append (class->construct_properties, pspec);
+        {
+          class->construct_properties = g_slist_append (class->construct_properties, pspec);
+          class->n_construct_properties += 1;
+        }
 
       /* for property overrides of construct properties, we have to get rid
        * of the overridden inherited construct property
        */
       pspec = g_param_spec_pool_lookup (pspec_pool, pspec->name, parent_type, TRUE);
       if (pspec && pspec->flags & (G_PARAM_CONSTRUCT | G_PARAM_CONSTRUCT_ONLY))
-        class->construct_properties = g_slist_remove (class->construct_properties, pspec);
+        {
+          class->construct_properties = g_slist_remove (class->construct_properties, pspec);
+          class->n_construct_properties -= 1;
+        }
 
       return TRUE;
     }
@@ -1181,10 +1189,14 @@ g_object_do_get_property (GObject     *object,
 static void
 g_object_real_dispose (GObject *object)
 {
+  GQuark keys[3] = {
+    quark_closure_array,
+    quark_weak_refs,
+    quark_weak_locations,
+  };
+
   g_signal_handlers_destroy (object);
-  g_datalist_id_set_data (&object->qdata, quark_closure_array, NULL);
-  g_datalist_id_set_data (&object->qdata, quark_weak_refs, NULL);
-  g_datalist_id_set_data (&object->qdata, quark_weak_locations, NULL);
+  g_datalist_id_remove_multiple (&object->qdata, keys, G_N_ELEMENTS (keys));
 }
 
 #ifdef G_ENABLE_DEBUG
@@ -1210,13 +1222,13 @@ floating_check (GObject *object)
 static void
 g_object_finalize (GObject *object)
 {
+#ifdef G_ENABLE_DEBUG
   if (object_in_construction (object))
     {
       g_critical ("object %s %p finalized while still in-construction",
                   G_OBJECT_TYPE_NAME (object), object);
     }
 
-#ifdef G_ENABLE_DEBUG
  if (floating_check (object))
    {
       g_critical ("A floating object %s %p was finalized. This means that someone\n"
@@ -1569,12 +1581,12 @@ object_set_property (GObject             *object,
 		     const GValue        *value,
 		     GObjectNotifyQueue  *nqueue)
 {
-  GValue tmp_value = G_VALUE_INIT;
   GObjectClass *class = g_type_class_peek (pspec->owner_type);
+  GParamSpecClass *pclass;
   guint param_id = PARAM_SPEC_PARAM_ID (pspec);
   GParamSpec *redirect;
 
-  if (class == NULL)
+  if (G_UNLIKELY (class == NULL))
     {
       g_warning ("'%s::%s' is not a valid property name; '%s' is not a GObject subtype",
                  g_type_name (pspec->owner_type), pspec->name, g_type_name (pspec->owner_type));
@@ -1585,33 +1597,46 @@ object_set_property (GObject             *object,
   if (redirect)
     pspec = redirect;
 
-  /* provide a copy to work from, convert (if necessary) and validate */
-  g_value_init (&tmp_value, pspec->value_type);
-  if (!g_value_transform (value, &tmp_value))
-    g_warning ("unable to set property '%s' of type '%s' from value of type '%s'",
-	       pspec->name,
-	       g_type_name (pspec->value_type),
-	       G_VALUE_TYPE_NAME (value));
-  else if (g_param_value_validate (pspec, &tmp_value) && !(pspec->flags & G_PARAM_LAX_VALIDATION))
+  pclass = G_PARAM_SPEC_GET_CLASS (pspec);
+  if (g_value_type_compatible (G_VALUE_TYPE (value), pspec->value_type) &&
+      (pclass->value_validate == NULL ||
+       (pclass->value_is_valid != NULL && pclass->value_is_valid (pspec, value))))
     {
-      gchar *contents = g_strdup_value_contents (value);
-
-      g_warning ("value \"%s\" of type '%s' is invalid or out of range for property '%s' of type '%s'",
-		 contents,
-		 G_VALUE_TYPE_NAME (value),
-		 pspec->name,
-		 g_type_name (pspec->value_type));
-      g_free (contents);
+      class->set_property (object, param_id, value, pspec);
     }
   else
     {
-      class->set_property (object, param_id, &tmp_value, pspec);
+      /* provide a copy to work from, convert (if necessary) and validate */
+      GValue tmp_value = G_VALUE_INIT;
 
-      if (~pspec->flags & G_PARAM_EXPLICIT_NOTIFY &&
-          pspec->flags & G_PARAM_READABLE)
-        g_object_notify_queue_add (object, nqueue, pspec);
+      g_value_init (&tmp_value, pspec->value_type);
+
+      if (!g_value_transform (value, &tmp_value))
+        g_warning ("unable to set property '%s' of type '%s' from value of type '%s'",
+                   pspec->name,
+                   g_type_name (pspec->value_type),
+                   G_VALUE_TYPE_NAME (value));
+      else if (g_param_value_validate (pspec, &tmp_value) && !(pspec->flags & G_PARAM_LAX_VALIDATION))
+        {
+          gchar *contents = g_strdup_value_contents (value);
+
+          g_warning ("value \"%s\" of type '%s' is invalid or out of range for property '%s' of type '%s'",
+                     contents,
+                     G_VALUE_TYPE_NAME (value),
+                     pspec->name,
+                     g_type_name (pspec->value_type));
+          g_free (contents);
+        }
+      else
+        {
+          class->set_property (object, param_id, &tmp_value, pspec);
+        }
+
+      g_value_unset (&tmp_value);
     }
-  g_value_unset (&tmp_value);
+
+  if ((pspec->flags & (G_PARAM_EXPLICIT_NOTIFY|G_PARAM_READABLE)) == G_PARAM_READABLE)
+    g_object_notify_queue_add (object, nqueue, pspec);
 }
 
 static void
@@ -1856,9 +1881,9 @@ g_object_new_with_custom_constructor (GObjectClass          *class,
   GObjectNotifyQueue *nqueue = NULL;
   gboolean newly_constructed;
   GObjectConstructParam *cparams;
+  gboolean free_cparams = FALSE;
   GObject *object;
   GValue *cvalues;
-  gint n_cparams;
   gint cvals_used;
   GSList *node;
   guint i;
@@ -1873,10 +1898,21 @@ g_object_new_with_custom_constructor (GObjectClass          *class,
    * while their constructor() is running.
    */
 
-  /* Create the array of GObjectConstructParams for constructor() */
-  n_cparams = g_slist_length (class->construct_properties);
-  cparams = g_new (GObjectConstructParam, n_cparams);
-  cvalues = g_new0 (GValue, n_cparams);
+  /* Create the array of GObjectConstructParams for constructor(),
+   * The 1024 here is an arbitrary, high limit that no sane code
+   * will ever hit, just to avoid the possibility of stack overflow.
+   */
+  if (G_LIKELY (class->n_construct_properties < 1024))
+    {
+      cparams = g_newa0 (GObjectConstructParam, class->n_construct_properties);
+      cvalues = g_newa0 (GValue, class->n_construct_properties);
+    }
+  else
+    {
+      cparams = g_new0 (GObjectConstructParam, class->n_construct_properties);
+      cvalues = g_new0 (GValue, class->n_construct_properties);
+      free_cparams = TRUE;
+    }
   cvals_used = 0;
   i = 0;
 
@@ -1917,12 +1953,16 @@ g_object_new_with_custom_constructor (GObjectClass          *class,
     }
 
   /* construct object from construction parameters */
-  object = class->constructor (class->g_type_class.g_type, n_cparams, cparams);
+  object = class->constructor (class->g_type_class.g_type, class->n_construct_properties, cparams);
   /* free construction values */
-  g_free (cparams);
   while (cvals_used--)
     g_value_unset (&cvalues[cvals_used]);
-  g_free (cvalues);
+
+  if (free_cparams)
+    {
+      g_free (cparams);
+      g_free (cvalues);
+    }
 
   /* There is code in the wild that relies on being able to return NULL
    * from its custom constructor.  This was never a supported operation,
@@ -2294,9 +2334,11 @@ g_object_new_valist (GType        object_type,
     {
       GObjectConstructParam params_stack[16];
       GValue values_stack[G_N_ELEMENTS (params_stack)];
+      GTypeValueTable *vtabs_stack[G_N_ELEMENTS (params_stack)];
       const gchar *name;
       GObjectConstructParam *params = params_stack;
       GValue *values = values_stack;
+      GTypeValueTable **vtabs = vtabs_stack;
       guint n_params = 0;
       guint n_params_alloc = G_N_ELEMENTS (params_stack);
 
@@ -2321,14 +2363,17 @@ g_object_new_valist (GType        object_type,
                   n_params_alloc = G_N_ELEMENTS (params_stack) * 2u;
                   params = g_new (GObjectConstructParam, n_params_alloc);
                   values = g_new (GValue, n_params_alloc);
+                  vtabs = g_new (GTypeValueTable *, n_params_alloc);
                   memcpy (params, params_stack, sizeof (GObjectConstructParam) * n_params);
                   memcpy (values, values_stack, sizeof (GValue) * n_params);
+                  memcpy (vtabs, vtabs_stack, sizeof (GTypeValueTable *) * n_params);
                 }
               else
                 {
                   n_params_alloc *= 2u;
                   params = g_realloc (params, sizeof (GObjectConstructParam) * n_params_alloc);
                   values = g_realloc (values, sizeof (GValue) * n_params_alloc);
+                  vtabs = g_realloc (vtabs, sizeof (GTypeValueTable *) * n_params_alloc);
                 }
 
               for (i = 0; i < n_params; i++)
@@ -2339,7 +2384,7 @@ g_object_new_valist (GType        object_type,
           params[n_params].value = &values[n_params];
           memset (&values[n_params], 0, sizeof (GValue));
 
-          G_VALUE_COLLECT_INIT (&values[n_params], pspec->value_type, var_args, 0, &error);
+          G_VALUE_COLLECT_INIT2 (&values[n_params], vtabs[n_params], pspec->value_type, var_args, 0, &error);
 
           if (error)
             {
@@ -2356,12 +2401,19 @@ g_object_new_valist (GType        object_type,
       object = g_object_new_internal (class, params, n_params);
 
       while (n_params--)
-        g_value_unset (params[n_params].value);
+        {
+          /* We open-code g_value_unset() here to avoid the
+           * cost of looking up the GTypeValueTable again.
+           */
+          if (vtabs[n_params]->value_free)
+            vtabs[n_params]->value_free (params[n_params].value);
+        }
 
       if (G_UNLIKELY (n_params_alloc != G_N_ELEMENTS (params_stack)))
         {
           g_free (params);
           g_free (values);
+          g_free (vtabs);
         }
     }
   else
@@ -2516,6 +2568,7 @@ g_object_set_valist (GObject	 *object,
       GValue value = G_VALUE_INIT;
       GParamSpec *pspec;
       gchar *error = NULL;
+      GTypeValueTable *vtab;
       
       pspec = g_param_spec_pool_lookup (pspec_pool,
 					name,
@@ -2525,8 +2578,7 @@ g_object_set_valist (GObject	 *object,
       if (!g_object_set_is_valid_property (object, pspec, name))
         break;
 
-      G_VALUE_COLLECT_INIT (&value, pspec->value_type, var_args,
-			    0, &error);
+      G_VALUE_COLLECT_INIT2 (&value, vtab, pspec->value_type, var_args, 0, &error);
       if (error)
 	{
 	  g_warning ("%s: %s", G_STRFUNC, error);
@@ -2537,7 +2589,12 @@ g_object_set_valist (GObject	 *object,
 
       consider_issuing_property_deprecation_warning (pspec);
       object_set_property (object, pspec, &value, nqueue);
-      g_value_unset (&value);
+
+      /* We open-code g_value_unset() here to avoid the
+       * cost of looking up the GTypeValueTable again.
+       */
+      if (vtab->value_free)
+        vtab->value_free (&value);
 
       name = va_arg (var_args, gchar*);
     }
@@ -3661,10 +3718,15 @@ g_object_unref (gpointer _object)
 	}
 
       /* we are still in the process of taking away the last ref */
-      g_datalist_id_set_data (&object->qdata, quark_closure_array, NULL);
       g_signal_handlers_destroy (object);
-      g_datalist_id_set_data (&object->qdata, quark_weak_refs, NULL);
-      g_datalist_id_set_data (&object->qdata, quark_weak_locations, NULL);
+      {
+        GQuark keys[3] = {
+          quark_closure_array,
+          quark_weak_refs,
+          quark_weak_locations,
+        };
+        g_datalist_id_remove_multiple (&object->qdata, keys, G_N_ELEMENTS (keys));
+      }
 
       /* decrement the last reference */
       old_ref = g_atomic_int_add (&object->ref_count, -1);
