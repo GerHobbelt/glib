@@ -626,7 +626,7 @@ create_certificate_chain_from_list (GSList       *pem_list,
 
       /* root will point to the last certificate in the file. */
       if (!root)
-        root = cert;
+        root = g_object_ref (cert);
 
       pem = g_slist_next (pem);
     }
@@ -640,6 +640,8 @@ create_certificate_chain_from_list (GSList       *pem_list,
       /* It wasn't a chain, it's just a bunch of unrelated certs. */
       g_clear_object (&cert);
     }
+
+  g_clear_object (&root);
 
   return cert;
 }
@@ -1118,6 +1120,8 @@ g_tls_certificate_get_issuer (GTlsCertificate  *cert)
  * certificate outside the context of making a connection, or to
  * check a certificate against a CA that is not part of the system
  * CA database.
+ *
+ * If @cert is valid, %G_TLS_CERTIFICATE_FLAGS_NONE is returned.
  *
  * If @identity is not %NULL, @cert's name(s) will be compared against
  * it, and %G_TLS_CERTIFICATE_BAD_IDENTITY will be set in the return

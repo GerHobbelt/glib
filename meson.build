@@ -1,5 +1,5 @@
 project('glib', 'c', 'cpp',
-  version : '2.73.0',
+  version : '2.73.1',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 0.60.0',
   default_options : [
@@ -1715,11 +1715,8 @@ g_have_iso_c_varargs = cc.compiles('''
     call_a(2,3);
   }''', name : 'ISO C99 varargs macros in C')
 
-if g_have_iso_c_varargs
-  glibconfig_conf.set('g_have_iso_c_varargs', '''
-#ifndef __cplusplus
-# define G_HAVE_ISO_VARARGS 1
-#endif''')
+if not g_have_iso_c_varargs
+  error('GLib requires a C compiler with support for C99 __VA_ARG__ in macros.')
 endif
 
 g_have_iso_cxx_varargs = cxx.compiles('''
@@ -1729,11 +1726,8 @@ g_have_iso_cxx_varargs = cxx.compiles('''
     call_a(2,3);
   }''', name : 'ISO C99 varargs macros in C++')
 
-if g_have_iso_cxx_varargs
-  glibconfig_conf.set('g_have_iso_cxx_varargs', '''
-#ifdef __cplusplus
-# define G_HAVE_ISO_VARARGS 1
-#endif''')
+if not g_have_iso_cxx_varargs
+  error('GLib requires a C++ compiler with support for C99 __VA_ARG__ in macros.')
 endif
 
 g_have_gnuc_varargs = cc.compiles('''
@@ -1874,7 +1868,7 @@ if cc.get_id() == 'msvc' or cc.get_id() == 'clang-cl' or cc.links(atomictest, na
       }
     '''
 
-    glib_conf.set('__GCC_HAVE_SYNC_SWAP', cc.links(sync_swap_test, name : 'sync swap'))
+    glib_conf.set('_GLIB_GCC_HAVE_SYNC_SWAP', cc.links(sync_swap_test, name : 'sync swap'))
   endif
 else
   have_atomic_lock_free = false
@@ -2042,6 +2036,7 @@ else
 endif
 
 # Import the gvdb sources as a subproject to avoid having the copylib in-tree
+subproject('gvdb')
 gvdb_dep = dependency('gvdb')
 
 libm = cc.find_library('m', required : false)
@@ -2345,9 +2340,6 @@ subdir('gthread')
 subdir('gmodule')
 subdir('gio')
 subdir('fuzzing')
-if build_tests
-  subdir('tests')
-endif
 subdir('tools')
 
 # xgettext is optional (on Windows for instance)
