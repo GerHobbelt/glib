@@ -101,6 +101,9 @@ gio_tests = {
   'power-profile-monitor' : {},
   'proxy-test' : {},
   'readwrite' : {},
+  'sandbox' : {
+    'source': ['sandbox.c', '../gsandbox.c'],
+  },
   'simple-async-result' : {},
   'simple-proxy' : {},
   'sleepy-stream' : {},

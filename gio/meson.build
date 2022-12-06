@@ -9,9 +9,10 @@ gio_c_args_internal = [
   '-DGIO_COMPILATION',
 ]
 
-gio_includedir = glib_includedir / 'gio'
+# Install empty glib_giomodulesdir
+install_emptydir(glib_giomodulesdir)
 
-# FIXME: Install empty glib_giomodulesdir
+gio_includedir = glib_includedir / 'gio'
 
 gnetworking_h_conf = configuration_data()
 
@@ -369,15 +370,17 @@ if host_system != 'windows'
   )
 
   portal_sources = [files(
-    'gdocumentportal.c',
-    'gopenuriportal.c',
-    'gmemorymonitorportal.c',
-    'gnetworkmonitorportal.c',
-    'gpowerprofilemonitorportal.c',
-    'gproxyresolverportal.c',
-    'gtrashportal.c',
-    'gportalsupport.c',
-    'gportalnotificationbackend.c'),
+      'gdocumentportal.c',
+      'gopenuriportal.c',
+      'gmemorymonitorportal.c',
+      'gnetworkmonitorportal.c',
+      'gpowerprofilemonitorportal.c',
+      'gproxyresolverportal.c',
+      'gtrashportal.c',
+      'gportalsupport.c',
+      'gportalnotificationbackend.c',
+      'gsandbox.c',
+    ),
     xdp_dbus_generated
   ]
 
