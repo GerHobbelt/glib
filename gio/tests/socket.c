@@ -1187,23 +1187,25 @@ test_timed_wait (void)
 }
 
 static int
-duplicate_fd (int fd)
+duplicate_socket_fd (int fd)
 {
 #ifdef G_OS_WIN32
-  HANDLE newfd;
+  WSAPROTOCOL_INFO info;
 
-  if (!DuplicateHandle (GetCurrentProcess (),
-                        (HANDLE)fd,
-                        GetCurrentProcess (),
-                        &newfd,
-                        0,
-                        FALSE,
-                        DUPLICATE_SAME_ACCESS))
+  if (WSADuplicateSocket ((SOCKET)fd,
+                          GetCurrentProcessId (),
+                          &info))
     {
+      gchar *emsg = g_win32_error_message (WSAGetLastError ());
+      g_test_message ("Error duplicating socket: %s", emsg);
+      g_free (emsg);
       return -1;
     }
 
-  return (int)(gintptr)newfd;
+  return (int)WSASocket (FROM_PROTOCOL_INFO,
+                         FROM_PROTOCOL_INFO,
+                         FROM_PROTOCOL_INFO,
+                         &info, 0, 0);
 #else
   return dup (fd);
 #endif
@@ -1249,7 +1251,7 @@ test_fd_reuse (void)
   g_object_unref (addr);
 
   /* we have to dup otherwise the fd gets closed twice on unref */
-  fd = duplicate_fd (g_socket_get_fd (client));
+  fd = duplicate_socket_fd (g_socket_get_fd (client));
   client2 = g_socket_new_from_fd (fd, &error);
   g_assert_no_error (error);
 
@@ -2241,7 +2243,7 @@ test_credentials_unix_socketpair (void)
 {
   gint fds[2];
   gint status;
-  GSocket *sock;
+  GSocket *sock[2];
   GError *error = NULL;
   GCredentials *creds;
 
@@ -2257,9 +2259,12 @@ test_credentials_unix_socketpair (void)
 #endif
   g_assert_cmpint (status, ==, 0);
 
-  sock = g_socket_new_from_fd (fds[0], &error);
+  sock[0] = g_socket_new_from_fd (fds[0], &error);
+  g_assert_no_error (error);
+  sock[1] = g_socket_new_from_fd (fds[1], &error);
+  g_assert_no_error (error);
 
-  creds = g_socket_get_credentials (sock, &error);
+  creds = g_socket_get_credentials (sock[0], &error);
   if (creds != NULL)
     {
       gchar *str = g_credentials_to_string (creds);
@@ -2274,8 +2279,8 @@ test_credentials_unix_socketpair (void)
       g_clear_error (&error);
     }
 
-  g_object_unref (sock);
-  g_close (fds[1], NULL);
+  g_object_unref (sock[0]);
+  g_object_unref (sock[1]);
 }
 #endif
 

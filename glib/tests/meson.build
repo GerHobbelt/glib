@@ -65,6 +65,7 @@ glib_tests = {
   'mutex' : {},
   'node' : {},
   'once' : {},
+  'onceinit' : {},
   'option-context' : {},
   'option-argv0' : {},
   'overflow' : {},
@@ -107,6 +108,7 @@ glib_tests = {
   'spawn-multithreaded' : {},
   'spawn-path-search' : {},
   'spawn-singlethread' : {},
+  'spawn-test' : {},
   'strfuncs' : {},
   'string' : {},
   'strvbuilder' : {},
@@ -125,6 +127,7 @@ glib_tests = {
   'utils' : {},
   'unicode' : {},
   'unicode-encoding' : {},
+  'unicode-normalize': {},
   'uri' : {},
   '1bit-mutex' : {},
   '1bit-emufutex' : {
