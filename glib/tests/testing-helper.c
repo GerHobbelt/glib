@@ -52,6 +52,12 @@ test_fail (void)
 }
 
 static void
+test_error (void)
+{
+  g_error ("This should error out\nBecause it's just\nwrong!");
+}
+
+static void
 test_fail_printf (void)
 {
   g_test_fail_printf ("this test intentionally left failing");
@@ -77,6 +83,14 @@ test_summary (void)
   g_test_summary ("Tests that g_test_summary() works with TAP, by outputting a "
                   "known summary message in testing-helper, and checking for "
                   "it in the TAP output later.");
+}
+
+static void
+test_message (void)
+{
+  g_test_message ("Tests that single line message works");
+  g_test_message ("Tests that multi\n\nline\nmessage\nworks");
+  g_test_message ("\nTests that multi\nline\nmessage\nworks with leading and trailing too\n");
 }
 
 int
@@ -149,6 +163,15 @@ main (int   argc,
     {
       g_test_add_func ("/fail", test_fail);
     }
+  else if (g_strcmp0 (argv1, "error") == 0)
+    {
+      g_test_add_func ("/error", test_error);
+    }
+  else if (g_strcmp0 (argv1, "error-and-pass") == 0)
+    {
+      g_test_add_func ("/error", test_error);
+      g_test_add_func ("/pass", test_pass);
+    }
   else if (g_strcmp0 (argv1, "fail-printf") == 0)
     {
       g_test_add_func ("/fail-printf", test_fail_printf);
@@ -184,6 +207,10 @@ main (int   argc,
   else if (g_strcmp0 (argv1, "summary") == 0)
     {
       g_test_add_func ("/summary", test_summary);
+    }
+  else if (g_strcmp0 (argv1, "message") == 0)
+    {
+      g_test_add_func ("/message", test_message);
     }
   else
     {
