@@ -866,6 +866,7 @@ if host_system == 'linux'
   endif
 endif
 
+osx_ldflags = []
 glib_have_os_x_9_or_later = false
 glib_have_carbon = false
 glib_have_cocoa = false
@@ -898,6 +899,7 @@ if host_system == 'darwin'
 
   if glib_have_cocoa
     glib_conf.set('HAVE_COCOA', true)
+    osx_ldflags += ['-Wl,-framework,Foundation', '-Wl,-framework,AppKit']
   endif
 endif
 
@@ -2050,7 +2052,9 @@ else
 endif
 
 pcre2_req = '>=10.32'
-pcre2 = dependency('libpcre2-8', version: pcre2_req, required: false, allow_fallback: false)
+
+# Pick up pcre from the system, or if "--force-fallback-for libpcre2-8" was specified
+pcre2 = dependency('libpcre2-8', version: pcre2_req, required: false, default_options: ['default_library=static'])
 if not pcre2.found()
   if cc.get_id() == 'msvc' or cc.get_id() == 'clang-cl'
   # MSVC: Search for the PCRE2 library by the configuration, which corresponds
@@ -2066,7 +2070,7 @@ endif
 
 # Try again with the fallback
 if not pcre2.found()
-  pcre2 = dependency('libpcre2-8', version: pcre2_req, allow_fallback: true)
+  pcre2 = dependency('libpcre2-8', version: pcre2_req, allow_fallback: true, default_options: ['default_library=static'])
   assert(pcre2.type_name() == 'internal')
   # static flags are automatically enabled by the subproject if it's built
   # with default_library=static
@@ -2116,11 +2120,16 @@ if libintl.found()
   if cc.has_function('ngettext', dependencies : libintl, prefix: libintl_prefix)
     libintl_deps += [libintl]
   else
-    libintl_pthread = cc.find_library('pthread', required : false)
-    if libintl_pthread.found() and cc.has_function('ngettext', dependencies : [libintl, libintl_pthread], prefix: libintl_prefix)
-      libintl_deps += [libintl, libintl_pthread]
+    libintl_iconv = cc.find_library('iconv', required : false)
+    if libintl_iconv.found() and cc.has_function('ngettext', args : osx_ldflags, dependencies : [libintl, libintl_iconv])
+      libintl_deps += [libintl, libintl_iconv]
     else
-      libintl = disabler()
+      libintl_pthread = cc.find_library('pthread', required : false)
+      if libintl_pthread.found() and cc.has_function('ngettext', dependencies : [libintl, libintl_pthread], prefix: libintl_prefix)
+        libintl_deps += [libintl, libintl_pthread]
+      else
+        libintl = disabler()
+      endif
     endif
   endif
 endif
