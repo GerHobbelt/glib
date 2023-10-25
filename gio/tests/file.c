@@ -452,15 +452,13 @@ created_cb (GObject      *source,
                                data);
 }
 
-static gboolean
+static void
 stop_timeout (gpointer user_data)
 {
   CreateDeleteData *data = user_data;
 
   data->timed_out = TRUE;
   g_main_context_wakeup (data->context);
-
-  return G_SOURCE_REMOVE;
 }
 
 /*
@@ -518,7 +516,7 @@ test_create_delete (gconstpointer d)
 
   /* Use the global default main context */
   data->context = NULL;
-  data->timeout = g_timeout_add_seconds (10, stop_timeout, data);
+  data->timeout = g_timeout_add_seconds_once (10, stop_timeout, data);
 
   g_file_create_async (data->file, 0, 0, NULL, created_cb, data);
 
@@ -2515,6 +2513,80 @@ test_copy_preserve_mode (void)
 #endif
 }
 
+typedef struct
+{
+  goffset current_num_bytes;
+  goffset total_num_bytes;
+} CopyProgressData;
+
+static void
+file_copy_progress_cb (goffset  current_num_bytes,
+                       goffset  total_num_bytes,
+                       gpointer user_data)
+{
+  CopyProgressData *prev_data = user_data;
+
+  g_assert_cmpuint (total_num_bytes, ==, prev_data->total_num_bytes);
+  g_assert_cmpuint (current_num_bytes, >=, prev_data->current_num_bytes);
+
+  /* Update it for the next callback. */
+  prev_data->current_num_bytes = current_num_bytes;
+}
+
+static void
+test_copy_progress (void)
+{
+  GFile *src_tmpfile = NULL;
+  GFile *dest_tmpfile = NULL;
+  GFileIOStream *iostream;
+  GOutputStream *ostream;
+  GError *local_error = NULL;
+  const guint8 buffer[] = { 1, 2, 3, 4, 5 };
+  CopyProgressData progress_data;
+
+  src_tmpfile = g_file_new_tmp ("tmp-copy-progressXXXXXX",
+                                &iostream, &local_error);
+  g_assert_no_error (local_error);
+
+  /* Write some content to the file for testing. */
+  ostream = g_io_stream_get_output_stream (G_IO_STREAM (iostream));
+  g_output_stream_write (ostream, buffer, sizeof (buffer), NULL, &local_error);
+  g_assert_no_error (local_error);
+
+  g_io_stream_close ((GIOStream *) iostream, NULL, &local_error);
+  g_assert_no_error (local_error);
+  g_clear_object (&iostream);
+
+  /* Grab a unique destination filename. */
+  dest_tmpfile = g_file_new_tmp ("tmp-copy-progressXXXXXX",
+                                 &iostream, &local_error);
+  g_assert_no_error (local_error);
+  g_io_stream_close ((GIOStream *) iostream, NULL, &local_error);
+  g_assert_no_error (local_error);
+  g_clear_object (&iostream);
+
+  /* Set the progress data to an initial offset of zero. The callback will
+   * assert that progress is non-decreasing and reaches the total length of
+   * the file. */
+  progress_data.current_num_bytes = 0;
+  progress_data.total_num_bytes = sizeof (buffer);
+
+  /* Copy the file with progress reporting. */
+  g_file_copy (src_tmpfile, dest_tmpfile, G_FILE_COPY_OVERWRITE,
+               NULL, file_copy_progress_cb, &progress_data, &local_error);
+  g_assert_no_error (local_error);
+
+  g_assert_cmpuint (progress_data.current_num_bytes, ==, progress_data.total_num_bytes);
+  g_assert_cmpuint (progress_data.total_num_bytes, ==, sizeof (buffer));
+
+  /* Clean up. */
+  (void) g_file_delete (src_tmpfile, NULL, NULL);
+  (void) g_file_delete (dest_tmpfile, NULL, NULL);
+
+  g_clear_object (&src_tmpfile);
+  g_clear_object (&dest_tmpfile);
+}
+
 static void
 test_measure (void)
 {
@@ -2541,7 +2613,7 @@ test_measure (void)
   g_assert_true (ok);
   g_assert_no_error (error);
 
-  g_assert_cmpuint (num_bytes, ==, 74478);
+  g_assert_cmpuint (num_bytes, ==, 74469);
   g_assert_cmpuint (num_dirs, ==, 6);
   g_assert_cmpuint (num_files, ==, 32);
 
@@ -2624,7 +2696,7 @@ test_measure_async (void)
   file = g_file_new_for_path (path);
   g_free (path);
 
-  data->expected_bytes = 74478;
+  data->expected_bytes = 74469;
   data->expected_dirs = 6;
   data->expected_files = 32;
 
@@ -3846,6 +3918,7 @@ main (int argc, char *argv[])
   g_test_add_func ("/file/async-delete", test_async_delete);
   g_test_add_func ("/file/async-make-symlink", test_async_make_symlink);
   g_test_add_func ("/file/copy-preserve-mode", test_copy_preserve_mode);
+  g_test_add_func ("/file/copy/progress", test_copy_progress);
   g_test_add_func ("/file/measure", test_measure);
   g_test_add_func ("/file/measure-async", test_measure_async);
   g_test_add_func ("/file/load-bytes", test_load_bytes);
@@ -3871,3 +3944,4 @@ main (int argc, char *argv[])
 
   return g_test_run ();
 }
+

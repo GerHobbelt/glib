@@ -412,7 +412,7 @@ if cc.check_header('malloc.h')
   glib_conf_prefix = glib_conf_prefix + '#define HAVE_MALLOC_H 1\n'
 endif
 
-if cc.has_header('linux/netlink.h')
+if cc.check_header('linux/netlink.h')
   glib_conf.set('HAVE_NETLINK', 1)
 endif
 
@@ -611,6 +611,7 @@ endif
 functions = [
   'accept4',
   'close_range',
+  'copy_file_range',
   'endmntent',
   'endservent',
   'epoll_create',
@@ -825,6 +826,10 @@ have_rtld_next = false
 if cc.has_header_symbol('dlfcn.h', 'RTLD_NEXT', args: '-D_GNU_SOURCE')
   have_rtld_next = true
   glib_conf.set('HAVE_RTLD_NEXT', 1)
+endif
+
+if cc.has_type('loff_t', prefix: '#include <sys/types.h>')
+  glib_conf.set('HAVE_LOFF_T', 1)
 endif
 
 # Check whether to use statfs or statvfs

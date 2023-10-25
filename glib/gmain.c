@@ -133,7 +133,7 @@
  * @short_description: manages all available sources of events
  *
  * The main event loop manages all the available sources of events for
- * GLib and GTK+ applications. These events can come from any number of
+ * GLib and GTK applications. These events can come from any number of
  * different types of sources such as file descriptors (plain files,
  * pipes or sockets) and timeouts. New types of event sources can also
  * be added using g_source_attach().
@@ -165,12 +165,12 @@
  * exit the main loop, and g_main_loop_run() returns.
  *
  * It is possible to create new instances of #GMainLoop recursively.
- * This is often used in GTK+ applications when showing modal dialog
+ * This is often used in GTK applications when showing modal dialog
  * boxes. Note that event sources are associated with a particular
  * #GMainContext, and will be checked and dispatched for all main
  * loops associated with that GMainContext.
  *
- * GTK+ contains wrappers of some of these functions, e.g. gtk_main(),
+ * GTK contains wrappers of some of these functions, e.g. gtk_main(),
  * gtk_main_quit() and gtk_events_pending().
  *
  * ## Creating new source types
@@ -2197,7 +2197,7 @@ g_source_set_name_full (GSource    *source,
  *
  * The source name should describe in a human-readable way
  * what the source does. For example, "X11 event queue"
- * or "GTK+ repaint idle handler" or whatever it is.
+ * or "GTK repaint idle handler" or whatever it is.
  *
  * It is permitted to call this function multiple times, but is not
  * recommended due to the potential performance impact.  For example,
@@ -5410,21 +5410,7 @@ g_timeout_add_seconds_full (gint           priority,
                             gpointer       data,
                             GDestroyNotify notify)
 {
-  GSource *source;
-  guint id;
-
-  g_return_val_if_fail (function != NULL, 0);
-
-  source = g_timeout_source_new_seconds (interval);
-
-  if (priority != G_PRIORITY_DEFAULT)
-    g_source_set_priority (source, priority);
-
-  g_source_set_callback (source, function, data, notify);
-  id = g_source_attach (source, NULL);
-  g_source_unref (source);
-
-  return id;
+  return timeout_add_full (priority, interval, TRUE, FALSE, function, data, notify);
 }
 
 /**
@@ -5469,6 +5455,26 @@ g_timeout_add_seconds (guint       interval,
   g_return_val_if_fail (function != NULL, 0);
 
   return g_timeout_add_seconds_full (G_PRIORITY_DEFAULT, interval, function, data, NULL);
+}
+
+/**
+ * g_timeout_add_seconds_once:
+ * @interval: the time after which the function will be called, in seconds
+ * @function: function to call
+ * @data: data to pass to @function
+ *
+ * This function behaves like g_timeout_add_once() but with a range in seconds.
+ *
+ * Returns: the ID (greater than 0) of the event source
+ *
+ * Since: 2.78
+ */
+guint
+g_timeout_add_seconds_once (guint           interval,
+                            GSourceOnceFunc function,
+                            gpointer        data)
+{
+  return timeout_add_full (G_PRIORITY_DEFAULT, interval, TRUE, TRUE, (GSourceFunc) function, data, NULL);
 }
 
 /* Child watch functions */
