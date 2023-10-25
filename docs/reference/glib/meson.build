@@ -71,9 +71,7 @@ if get_option('gtk_doc')
                  '--ignore-headers=' + ' '.join(ignore_headers),
                ],
                content_files : [
-                 'building.xml',
                  'changes.xml',
-                 'compiling.xml',
                  'programming.xml',
                  'resources.xml',
                  'regex-syntax.xml',
@@ -82,7 +80,6 @@ if get_option('gtk_doc')
                  'gtester-report.xml',
                ],
                expand_content_files : [
-                 'compiling.xml',
                ],
                html_assets : [
                  'file-name-encodings.png',
@@ -148,7 +145,9 @@ endif
 
 # gi-docgen version
 expand_content_files = [
+  'building.md',
   'character-set.md',
+  'compiling.md',
   'cross-compiling.md',
   'error-reporting.md',
   'gvariant-format-strings.md',
@@ -161,6 +160,9 @@ expand_content_files = [
   'running.md',
   'testing.md',
   'threads.md',
+  'markup.md',
+  'goption.md',
+  'data-structures.md',
 ]
 
 glib_gir = meson.current_source_dir() / 'GLib-2.0.gir'

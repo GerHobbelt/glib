@@ -40,6 +40,8 @@ show_class_hierarchy = true
 urlmap_file = "urlmap.js"
 # The same order will be used when generating the index
 content_files = [
+  "building.md",
+  "compiling.md",
   "cross-compiling.md",
   "running.md",
 
@@ -51,6 +53,7 @@ content_files = [
 
   "macros.md",
   "conversion-macros.md",
+  "auto-cleanup.md",
 
   "memory-slices.md",
   "error-reporting.md",
@@ -59,6 +62,9 @@ content_files = [
   "reference-counting.md",
   "testing.md",
   "threads.md",
+  "markup.md",
+  "goption.md",
+  "data-structures.md",
 ]
 content_images = [
   "file-name-encodings.png",
