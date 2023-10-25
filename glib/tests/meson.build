@@ -138,6 +138,13 @@ glib_tests = {
     'args': [ '--verbose' ],
     'extra_programs' : ['testing-helper'],
   },
+  'testing-macro' : {
+    'args': [ '--verbose' ],
+    'extra_programs' : ['testing-helper'],
+    'source' : 'testing.c',
+    'c_args' : cc.get_id() == 'gcc' ? ['-Werror=sign-conversion'] : [],
+    'install' : false,
+  },
   'test-printf' : {},
   'thread' : {},
   'thread-deprecated' : {},
@@ -311,6 +318,29 @@ if host_machine.system() == 'windows'
   }
 endif
 
+if host_machine.system() == 'windows' or have_dlopen_dlsym
+  constructor_helper = shared_library('constructor-helper',
+                                      'constructor-helper.c',
+                                      dependencies: [libglib_dep],
+                                      install : false)
+  constructor_lib = shared_library('constructor-lib',
+                                   'constructor.c',
+                                   c_args: ['-DPREFIX=lib'],
+                                   dependencies: [libglib_dep],
+                                   link_with: [constructor_helper],
+                                   install : false)
+  glib_tests += {
+    'constructor' : {
+      'install': false,
+      'c_args': ['-DLIB_NAME=' + fs.name(constructor_lib.full_path()),
+                 '-DBUILD_TEST_EXECUTABLE',
+                 '-DPREFIX=app'],
+      'dependencies' : libdl_dep,
+      'link_with': [constructor_helper]
+    }
+  }
+endif
+
 foreach test_name, extra_args : glib_tests
   foreach std: extra_args.get('c_standards', [])
     if c_standards.has_key(std)
@@ -391,6 +421,7 @@ foreach test_name, extra_args : glib_tests
     link_args : extra_args.get('link_args', []),
     override_options : extra_args.get('override_options', []),
     dependencies : test_deps + extra_args.get('dependencies', []),
+    link_with : extra_args.get('link_with', []),
     install_dir: installed_tests_execdir,
     install_tag: 'tests',
     install: install,
