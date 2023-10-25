@@ -38,15 +38,15 @@
  *
  * GSlice was a space-efficient and multi-processing scalable way to allocate
  * equal sized pieces of memory. Since GLib 2.76, its implementation has been
- * removed and it calls g_malloc() and g_free(), because the performance of the
- * system-default allocators has improved on all platforms since GSlice was
- * written.
+ * removed and it calls g_malloc() and g_free_sized(), because the performance
+ * of the system-default allocators has improved on all platforms since GSlice
+ * was written.
  *
  * The GSlice APIs have not been deprecated, as they are widely in use and doing
  * so would be very disruptive for little benefit.
  *
- * New code should be written using g_new()/g_malloc() and g_free(). There is no
- * particular benefit in porting existing code away from
+ * New code should be written using g_new()/g_malloc() and g_free_sized() or
+ * g_free(). There is no particular benefit in porting existing code away from
  * g_slice_new()/g_slice_free() unless it’s being rewritten anyway.
  *
  * Here is an example for using the slice allocator:
@@ -188,7 +188,7 @@ g_slice_get_config_state (GSliceConfig ckey,
 /**
  * g_slice_free:
  * @type: the type of the block to free, typically a structure name
- * @mem: a pointer to the block to free
+ * @mem: (nullable): a pointer to the block to free
  *
  * A convenience macro to free a block of memory that has
  * been allocated from the slice allocator.
@@ -208,7 +208,7 @@ g_slice_get_config_state (GSliceConfig ckey,
 /**
  * g_slice_free_chain:
  * @type: the type of the @mem_chain blocks
- * @mem_chain: a pointer to the first block of the chain
+ * @mem_chain: (nullable): a pointer to the first block of the chain
  * @next: the field name of the next pointer in @type
  *
  * Frees a linked list of memory blocks of structure type @type.
@@ -239,7 +239,7 @@ g_slice_get_config_state (GSliceConfig ckey,
  * Since GLib 2.76 this always uses the system malloc() implementation
  * internally.
  *
- * Returns: a pointer to the allocated memory block, which will
+ * Returns: (nullable): a pointer to the allocated memory block, which will
  *   be %NULL if and only if @mem_size is 0
  *
  * Since: 2.10
@@ -265,8 +265,8 @@ g_slice_alloc (gsize mem_size)
  * Since GLib 2.76 this always uses the system malloc() implementation
  * internally.
  *
- * Returns: a pointer to the allocated block, which will be %NULL if and only
- *    if @mem_size is 0
+ * Returns: (nullable): a pointer to the allocated block, which will be %NULL
+ *    if and only if @mem_size is 0
  *
  * Since: 2.10
  */
@@ -292,8 +292,8 @@ g_slice_alloc0 (gsize mem_size)
  * Since GLib 2.76 this always uses the system malloc() implementation
  * internally.
  *
- * Returns: a pointer to the allocated memory block, which will be %NULL if and
- *    only if @mem_size is 0
+ * Returns: (nullable): a pointer to the allocated memory block,
+ *    which will be %NULL if and only if @mem_size is 0
  *
  * Since: 2.14
  */
@@ -310,7 +310,7 @@ g_slice_copy (gsize         mem_size,
 /**
  * g_slice_free1:
  * @block_size: the size of the block
- * @mem_block: a pointer to the block to free
+ * @mem_block: (nullable): a pointer to the block to free
  *
  * Frees a block of memory.
  *
@@ -322,7 +322,8 @@ g_slice_copy (gsize         mem_size,
  *
  * If @mem_block is %NULL, this function does nothing.
  *
- * Since GLib 2.76 this always uses the system free() implementation internally.
+ * Since GLib 2.76 this always uses the system free_sized() implementation
+ * internally.
  *
  * Since: 2.10
  */
@@ -330,16 +331,16 @@ void
 g_slice_free1 (gsize    mem_size,
                gpointer mem_block)
 {
-  if (G_UNLIKELY (g_mem_gc_friendly))
+  if (G_UNLIKELY (g_mem_gc_friendly && mem_block))
     memset (mem_block, 0, mem_size);
-  g_free (mem_block);
+  g_free_sized (mem_block, mem_size);
   TRACE (GLIB_SLICE_FREE((void*)mem_block, mem_size));
 }
 
 /**
  * g_slice_free_chain_with_offset:
  * @block_size: the size of the blocks
- * @mem_chain:  a pointer to the first block of the chain
+ * @mem_chain: (nullable):  a pointer to the first block of the chain
  * @next_offset: the offset of the @next field in the blocks
  *
  * Frees a linked list of memory blocks of structure type @type.
@@ -353,7 +354,8 @@ g_slice_free1 (gsize    mem_size,
  *
  * If @mem_chain is %NULL, this function does nothing.
  *
- * Since GLib 2.76 this always uses the system free() implementation internally.
+ * Since GLib 2.76 this always uses the system free_sized() implementation
+ * internally.
  *
  * Since: 2.10
  */
@@ -369,7 +371,7 @@ g_slice_free_chain_with_offset (gsize    mem_size,
       slice = *(gpointer *) (current + next_offset);
       if (G_UNLIKELY (g_mem_gc_friendly))
         memset (current, 0, mem_size);
-      g_free (current);
+      g_free_sized (current, mem_size);
     }
 }
 
