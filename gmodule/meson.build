@@ -115,30 +115,35 @@ pkg.generate(libgmodule,
   description : 'Dynamic module loader for GLib',
 )
 
-pkg.generate(libraries : [libgmodule, export_dynamic_ldflags],
+pkg.generate(libraries : [libgmodule],
   requires : ['glib-2.0'],
   version : glib_version,
   variables : [supported_var],
   install_dir : glib_pkgconfigreldir,
   filebase : 'gmodule-export-2.0',
+  extra_cflags : export_dynamic_cflags,
   name : 'GModule',
   description : 'Dynamic module loader for GLib',
 )
 
-pkg.generate(libraries : [libgmodule, export_dynamic_ldflags],
+pkg.generate(libraries : [libgmodule],
   requires : ['glib-2.0'],
   version : glib_version,
   variables : [supported_var],
   install_dir : glib_pkgconfigreldir,
   filebase : 'gmodule-2.0',
+  extra_cflags : export_dynamic_cflags,
   name : 'GModule',
   description : 'Dynamic module loader for GLib',
 )
 
+gmodule_inc_dep = declare_dependency(
+  include_directories: [gmoduleinc],
+  sources: [gmodule_visibility_h],
+)
+
 libgmodule_dep = declare_dependency(link_with : libgmodule,
-  include_directories : [gmoduleinc],
-  sources : [gmodule_visibility_h],
-  dependencies : [libglib_dep])
+  dependencies : [libglib_dep, gmodule_inc_dep])
 
 meson.override_dependency('gmodule-no-export-2.0', libgmodule_dep)
 meson.override_dependency('gmodule-export-2.0', libgmodule_dep)

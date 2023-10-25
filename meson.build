@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.76.1',
+  version : '2.77.0',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 0.60.0',
   default_options : [
@@ -8,6 +8,8 @@ project('glib', 'c',
     'c_std=gnu99'
   ]
 )
+
+fs = import('fs')
 
 cc = meson.get_compiler('c')
 c_standards = {}
@@ -37,7 +39,7 @@ cc_can_run = meson.can_run_host_binaries()
 if cc.get_argument_syntax() == 'msvc'
   # Ignore several spurious warnings for things glib does very commonly
   # (also for clang-cl)
-  add_project_arguments('/FImsvc_recommended_pragmas.h',language : 'c')
+  add_project_arguments('/FIglib/msvc_recommended_pragmas.h', language : 'c')
 endif
 
 if cc.get_id() == 'msvc'
@@ -175,9 +177,10 @@ add_test_setup('unstable_tests',
 
 # Allow the tests to be easily run under valgrind using --setup=valgrind
 valgrind = find_program('valgrind', required: false)
-if valgrind.found()
-  suppression_file = files('tools' / 'glib.supp')
+valgrind_suppression_file = files('tools' / 'glib.supp')[0]
+valgrind_suppression_file_install_subdir = 'glib-2.0' / 'valgrind'
 
+if valgrind.found()
   add_test_setup('valgrind',
     exclude_suites: [ 'no-valgrind', 'flaky' ],
     exe_wrapper: [
@@ -191,7 +194,7 @@ if valgrind.found()
       '--show-leak-kinds=definite,possible',
       '--show-error-list=yes',
       '--suppressions=@0@'.format(meson.project_source_root() /
-        '@0@'.format(suppression_file[0])),
+        '@0@'.format(valgrind_suppression_file)),
     ],
     env: common_test_env,
     timeout_multiplier: 20,
@@ -2089,6 +2092,7 @@ libz_dep = dependency('zlib')
 # FIXME: glib-gettext.m4 has much more checks to detect broken/uncompatible
 # implementations. This could be extended if issues are found in some platforms.
 libintl_deps = []
+libintl_prefix = '#include <libintl.h>'
 libintl = dependency('intl', required: false, allow_fallback: false)
 if libintl.found()
   # libintl supports different threading APIs, which may not
@@ -2100,11 +2104,11 @@ if libintl.found()
   #
   # Meson's builtin dependency lookup as of 0.60.0 doesn't check for
   # pthread, so we do this manually here.
-  if cc.has_function('ngettext', dependencies : libintl)
+  if cc.has_function('ngettext', dependencies : libintl, prefix: libintl_prefix)
     libintl_deps += [libintl]
   else
     libintl_pthread = cc.find_library('pthread', required : false)
-    if libintl_pthread.found() and cc.has_function('ngettext', dependencies : [libintl, libintl_pthread])
+    if libintl_pthread.found() and cc.has_function('ngettext', dependencies : [libintl, libintl_pthread], prefix: libintl_prefix)
       libintl_deps += [libintl, libintl_pthread]
     else
       libintl = disabler()
@@ -2113,7 +2117,7 @@ if libintl.found()
 endif
 
 if libintl.found()
-  have_bind_textdomain_codeset = cc.has_function('bind_textdomain_codeset', dependencies: libintl_deps)
+  have_bind_textdomain_codeset = cc.has_function('bind_textdomain_codeset', dependencies: libintl_deps, prefix: libintl_prefix)
 else
   libintl = dependency('intl', allow_fallback: true)
   assert(libintl.type_name() == 'internal')
@@ -2284,9 +2288,11 @@ if not python_version.version_compare(python_version_req)
 endif
 
 # Determine which user environment-dependent files that we want to install
-have_bash = find_program('bash', required : false).found() # For completion scripts
+bash = find_program('bash', required : false)
+have_bash = bash.found() # For completion scripts
 bash_comp_dep = dependency('bash-completion', version: '>=2.0', required: false)
 have_sh = find_program('sh', required : false).found() # For glib-gettextize
+have_pkg_config = find_program('pkg-config', required: false).found()
 
 # Some installed tests require a custom environment
 env_program = find_program('env', required: installed_tests_enabled)
@@ -2304,15 +2310,15 @@ if host_system == 'windows'
   # Autotools explicitly removed --Wl,--export-all-symbols from windows builds,
   # with no explanation. Do the same here for now but this could be revisited if
   # if causes issues.
-  export_dynamic_ldflags = []
+  export_dynamic_cflags = []
 elif host_system == 'cygwin'
-  export_dynamic_ldflags = ['-Wl,--export-all-symbols']
+  export_dynamic_cflags = ['-Wl,--export-all-symbols']
 elif host_system in ['darwin', 'ios']
-  export_dynamic_ldflags = []
+  export_dynamic_cflags = []
 elif host_system == 'sunos'
-  export_dynamic_ldflags = []
+  export_dynamic_cflags = []
 else
-  export_dynamic_ldflags = ['-Wl,--export-dynamic']
+  export_dynamic_cflags = ['-Wl,--export-dynamic']
 endif
 
 win32_cflags = []
@@ -2419,10 +2425,6 @@ if host_system == 'windows'
 endif
 
 configure_file(output : 'config.h', configuration : glib_conf)
-
-if host_system == 'windows'
-  install_headers([ 'msvc_recommended_pragmas.h' ], install_dir : glib_includedir)
-endif
 
 if get_option('man')
   xsltproc = find_program('xsltproc', required : true)
