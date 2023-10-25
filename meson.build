@@ -50,7 +50,6 @@ if cc.get_id() == 'msvc'
   noseh_link_args = ['/SAFESEH:NO']
 else
   noseh_link_args = []
-  # -mms-bitfields vs -fnative-struct ?
 endif
 
 host_system = host_machine.system()
@@ -382,6 +381,7 @@ headers = [
   'sys/mnttab.h',
   'sys/mount.h',
   'sys/param.h',
+  'sys/prctl.h',
   'sys/resource.h',
   'sys/select.h',
   'sys/statfs.h',
@@ -695,6 +695,11 @@ if glib_conf.has('HAVE_SYS_STATFS_H') or glib_conf.has('HAVE_SYS_MOUNT_H')
   functions += ['statfs']
 else
   have_func_statfs = false
+endif
+if glib_conf.has('HAVE_SYS_PRCTL_H')
+  functions += ['prctl']
+else
+  have_func_prctl = false
 endif
 
 if host_system == 'windows'
@@ -2346,15 +2351,8 @@ else
   export_dynamic_ldflags = ['-Wl,--export-dynamic']
 endif
 
-win32_cflags = []
 win32_ldflags = []
 if host_system == 'windows' and cc.get_id() != 'msvc' and cc.get_id() != 'clang-cl'
-  # Ensure MSVC-compatible struct packing convention is used when
-  # compiling for Win32 with gcc. It is used for the whole project and exposed
-  # in glib-2.0.pc.
-  win32_cflags = ['-mms-bitfields']
-  add_project_arguments(win32_cflags, language : 'c')
-
   # Win32 API libs, used only by libglib and exposed in glib-2.0.pc
   win32_ldflags = ['-lws2_32', '-lole32', '-lwinmm', '-lshlwapi', '-luuid']
 elif host_system == 'cygwin'
