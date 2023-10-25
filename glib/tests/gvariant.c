@@ -1,5 +1,6 @@
 /*
  * Copyright © 2010 Codethink Limited
+ * Copyright © 2020 William Manley
  *
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -1281,6 +1282,7 @@ random_instance_filler (GVariantSerialised *serialised,
     serialised->size = instance->size;
 
   serialised->depth = 0;
+  serialised->ordered_offsets_up_to = 0;
 
   g_assert_true (serialised->type_info == instance->type_info);
   g_assert_cmpuint (serialised->size, ==, instance->size);
@@ -1440,7 +1442,7 @@ test_maybe (void)
 
     for (flavour = 0; flavour < 8; flavour += alignment)
       {
-        GVariantSerialised serialised;
+        GVariantSerialised serialised = { 0, };
         GVariantSerialised child;
 
         serialised.type_info = type_info;
@@ -1564,7 +1566,7 @@ test_array (void)
 
     for (flavour = 0; flavour < 8; flavour += alignment)
       {
-        GVariantSerialised serialised;
+        GVariantSerialised serialised = { 0, };
 
         serialised.type_info = array_info;
         serialised.data = flavoured_malloc (needed_size, flavour);
@@ -1728,7 +1730,7 @@ test_tuple (void)
 
     for (flavour = 0; flavour < 8; flavour += alignment)
       {
-        GVariantSerialised serialised;
+        GVariantSerialised serialised = { 0, };
 
         serialised.type_info = type_info;
         serialised.data = flavoured_malloc (needed_size, flavour);
@@ -1823,7 +1825,7 @@ test_variant (void)
 
     for (flavour = 0; flavour < 8; flavour += alignment)
       {
-        GVariantSerialised serialised;
+        GVariantSerialised serialised = { 0, };
         GVariantSerialised child;
 
         serialised.type_info = type_info;
@@ -2270,7 +2272,7 @@ serialise_tree (TreeInstance       *tree,
 static void
 test_byteswap (void)
 {
-  GVariantSerialised one, two;
+  GVariantSerialised one = { 0, }, two = { 0, };
   TreeInstance *tree;
 
   tree = tree_instance_new (NULL, 3);
@@ -2344,7 +2346,7 @@ test_serialiser_children (void)
 static void
 test_fuzz (gdouble *fuzziness)
 {
-  GVariantSerialised serialised;
+  GVariantSerialised serialised = { 0, };
   TreeInstance *tree;
 
   /* make an instance */
@@ -5143,6 +5145,47 @@ test_normal_checking_array_offsets (void)
   g_variant_unref (variant);
 }
 
+/* This is a regression test that we can't have non-normal values that take up
+ * significantly more space than the normal equivalent, by specifying the
+ * offset table entries so that array elements overlap.
+ *
+ * See https://gitlab.gnome.org/GNOME/glib/-/issues/2121#note_832242 */
+static void
+test_normal_checking_array_offsets2 (void)
+{
+  const guint8 data[] = {
+    'h', 'i', '\0',
+    0x03, 0x00, 0x03,
+    0x06, 0x00, 0x06,
+    0x09, 0x00, 0x09,
+    0x0c, 0x00, 0x0c,
+    0x0f, 0x00, 0x0f,
+    0x12, 0x00, 0x12,
+    0x15, 0x00, 0x15,
+  };
+  gsize size = sizeof (data);
+  const GVariantType *aaaaaaas = G_VARIANT_TYPE ("aaaaaaas");
+  GVariant *variant = NULL;
+  GVariant *normal_variant = NULL;
+  GVariant *expected = NULL;
+
+  variant = g_variant_new_from_data (aaaaaaas, data, size, FALSE, NULL, NULL);
+  g_assert_nonnull (variant);
+
+  normal_variant = g_variant_get_normal_form (variant);
+  g_assert_nonnull (normal_variant);
+  g_assert_cmpuint (g_variant_get_size (normal_variant), <=, size * 2);
+
+  expected = g_variant_new_parsed (
+      "[[[[[[['hi', '', ''], [], []], [], []], [], []], [], []], [], []], [], []]");
+  g_assert_cmpvariant (expected, variant);
+  g_assert_cmpvariant (expected, normal_variant);
+
+  g_variant_unref (expected);
+  g_variant_unref (normal_variant);
+  g_variant_unref (variant);
+}
+
 /* Test that a tuple with invalidly large values in its offset table is
  * normalised successfully without looping infinitely. */
 static void
@@ -5311,6 +5354,8 @@ main (int argc, char **argv)
                    test_normal_checking_tuples);
   g_test_add_func ("/gvariant/normal-checking/array-offsets",
                    test_normal_checking_array_offsets);
+  g_test_add_func ("/gvariant/normal-checking/array-offsets2",
+                   test_normal_checking_array_offsets2);
   g_test_add_func ("/gvariant/normal-checking/tuple-offsets",
                    test_normal_checking_tuple_offsets);
   g_test_add_func ("/gvariant/normal-checking/empty-object-path",
