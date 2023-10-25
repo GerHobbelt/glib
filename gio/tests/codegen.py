@@ -67,8 +67,8 @@ class TestCodegen(unittest.TestCase):
         "q": {"value_type": "uint"},
         "i": {"value_type": "int"},
         "u": {"value_type": "uint"},
-        "x": {"value_type": "int64"},
-        "t": {"value_type": "uint64"},
+        "x": {"value_type": "int64", "lacks_marshaller": True},
+        "t": {"value_type": "uint64", "lacks_marshaller": True},
         "d": {"value_type": "double"},
         "s": {"value_type": "string"},
         "o": {"value_type": "string"},
@@ -147,6 +147,51 @@ class TestCodegen(unittest.TestCase):
             "#ifdef G_OS_UNIX\n"
             "#  include <gio/gunixfdlist.h>\n"
             "#endif",
+            "private_gvalues_getters": """#ifdef G_ENABLE_DEBUG
+#define g_marshal_value_peek_boolean(v)  g_value_get_boolean (v)
+#define g_marshal_value_peek_char(v)     g_value_get_schar (v)
+#define g_marshal_value_peek_uchar(v)    g_value_get_uchar (v)
+#define g_marshal_value_peek_int(v)      g_value_get_int (v)
+#define g_marshal_value_peek_uint(v)     g_value_get_uint (v)
+#define g_marshal_value_peek_long(v)     g_value_get_long (v)
+#define g_marshal_value_peek_ulong(v)    g_value_get_ulong (v)
+#define g_marshal_value_peek_int64(v)    g_value_get_int64 (v)
+#define g_marshal_value_peek_uint64(v)   g_value_get_uint64 (v)
+#define g_marshal_value_peek_enum(v)     g_value_get_enum (v)
+#define g_marshal_value_peek_flags(v)    g_value_get_flags (v)
+#define g_marshal_value_peek_float(v)    g_value_get_float (v)
+#define g_marshal_value_peek_double(v)   g_value_get_double (v)
+#define g_marshal_value_peek_string(v)   (char*) g_value_get_string (v)
+#define g_marshal_value_peek_param(v)    g_value_get_param (v)
+#define g_marshal_value_peek_boxed(v)    g_value_get_boxed (v)
+#define g_marshal_value_peek_pointer(v)  g_value_get_pointer (v)
+#define g_marshal_value_peek_object(v)   g_value_get_object (v)
+#define g_marshal_value_peek_variant(v)  g_value_get_variant (v)
+#else /* !G_ENABLE_DEBUG */
+/* WARNING: This code accesses GValues directly, which is UNSUPPORTED API.
+ *          Do not access GValues directly in your code. Instead, use the
+ *          g_value_get_*() functions
+ */
+#define g_marshal_value_peek_boolean(v)  (v)->data[0].v_int
+#define g_marshal_value_peek_char(v)     (v)->data[0].v_int
+#define g_marshal_value_peek_uchar(v)    (v)->data[0].v_uint
+#define g_marshal_value_peek_int(v)      (v)->data[0].v_int
+#define g_marshal_value_peek_uint(v)     (v)->data[0].v_uint
+#define g_marshal_value_peek_long(v)     (v)->data[0].v_long
+#define g_marshal_value_peek_ulong(v)    (v)->data[0].v_ulong
+#define g_marshal_value_peek_int64(v)    (v)->data[0].v_int64
+#define g_marshal_value_peek_uint64(v)   (v)->data[0].v_uint64
+#define g_marshal_value_peek_enum(v)     (v)->data[0].v_long
+#define g_marshal_value_peek_flags(v)    (v)->data[0].v_ulong
+#define g_marshal_value_peek_float(v)    (v)->data[0].v_float
+#define g_marshal_value_peek_double(v)   (v)->data[0].v_double
+#define g_marshal_value_peek_string(v)   (v)->data[0].v_pointer
+#define g_marshal_value_peek_param(v)    (v)->data[0].v_pointer
+#define g_marshal_value_peek_boxed(v)    (v)->data[0].v_pointer
+#define g_marshal_value_peek_pointer(v)  (v)->data[0].v_pointer
+#define g_marshal_value_peek_object(v)   (v)->data[0].v_pointer
+#define g_marshal_value_peek_variant(v)  (v)->data[0].v_pointer
+#endif /* !G_ENABLE_DEBUG */""",
             "standard_typedefs_and_helpers": "typedef struct\n"
             "{\n"
             "  GDBusArgInfo parent_struct;\n"
@@ -345,6 +390,8 @@ G_END_DECLS
 #include "stdout.h"
 
 {standard_header_includes}
+
+{private_gvalues_getters}
 
 {standard_typedefs_and_helpers}""".format(
                 **result.subs
@@ -579,6 +626,64 @@ G_END_DECLS
                 "--glib-min-required",
                 "2.64",
             )
+
+    @unittest.skipIf(on_win32(), "requires /dev/stdout")
+    def test_dbus_types(self):
+        bad_types = [
+            "{vs}",  # Bad dictionary key type
+            "(ss(s{{sv}s}))",  # Bad dictionary key types
+            "{s",  # Unterminated dictionary
+            "(s{sss})",  # Unterminated dictionary
+            "z",  # Bad type
+            "(ssms)",  # Bad type
+            "(",  # Unterminated tuple
+            "(((ss))",  # Unterminated tuple
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaas",  # Too much recursion
+            "(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((("
+            "(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((s))"
+            "))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+            "))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))",  # Too much recursion
+            "{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{"
+            "{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{sv}"
+            "}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}"
+            "}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",  # Too much recursion
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(aaaaaa{sv})",  # Too much recursion
+            "(ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+            "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+            "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+            "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssss)",  # Too long
+        ]
+        for t in bad_types:
+            interface_xml = f"""
+                <node>
+                  <interface name="BadTypes">
+                    <property type="{t}" name="BadPropertyType" access="read" />
+                  </interface>
+                </node>"""
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.runCodegenWithInterface(
+                    interface_xml, "--output", "/dev/stdout", "--body"
+                )
+        good_types = [
+            "si{s{b(ybnqiuxtdh)}}{yv}{nv}{dv}",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaas",  # 128 Levels of recursion
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa(aaaaaaaaaaaaaaaaa{sv})",  # 128 Levels of recursion
+        ]
+        for t in good_types:
+            interface_xml = f"""
+                <node>
+                  <interface name="GoodTypes">
+                    <property type="{t}" name="GoodPropertyType" access="read" />
+                  </interface>
+                </node>"""
+            result = self.runCodegenWithInterface(
+                interface_xml, "--output", "/dev/stdout", "--body"
+            )
+            self.assertEqual("", result.err)
 
     @unittest.skipIf(on_win32(), "requires /dev/stdout")
     def test_unix_fd_types_and_annotations(self):
@@ -820,10 +925,12 @@ G_END_DECLS
         func_name = "org_project_signaling_iface_signal_marshal_simple_signal"
         self.assertIs(stripped_out.count(f"{func_name},"), 1)
         self.assertIs(stripped_out.count(f"{func_name} ("), 1)
+        self.assertIs(stripped_out.count("g_cclosure_marshal_VOID__VOID (closure"), 2)
 
         func_name = "org_project_other_signaling_iface_signal_marshal_simple_signal"
         self.assertIs(stripped_out.count(f"{func_name},"), 1)
         self.assertIs(stripped_out.count(f"{func_name} ("), 1)
+        self.assertIs(stripped_out.count("g_cclosure_marshal_VOID__VOID (closure"), 2)
 
     @unittest.skipIf(on_win32(), "requires /dev/stdout")
     def test_generate_signals_marshaller_single_typed_args(self):
@@ -847,17 +954,30 @@ G_END_DECLS
             self.assertFalse(result.err)
             self.assertEqual(stripped_out.count("g_cclosure_marshal_generic"), 0)
 
+            self.assertIs(
+                stripped_out.count("g_cclosure_marshal_VOID__VOID (closure"), 1
+            )
+
             func_name = (
                 f"org_project_signaling_iface_signal_marshal_single_arg_signal_{t}"
             )
             self.assertIs(stripped_out.count(f"{func_name},"), 1)
             self.assertIs(stripped_out.count(f"{func_name} ("), 1)
-            self.assertIs(
-                stripped_out.count(
-                    f"g_value_get_{props['value_type']} (param_values + 1)"
-                ),
-                1,
-            )
+
+            if props.get("lacks_marshaller", False):
+                self.assertIs(
+                    stripped_out.count(
+                        f"g_marshal_value_peek_{props['value_type']} (param_values + 1)"
+                    ),
+                    1,
+                )
+            else:
+                self.assertIs(
+                    stripped_out.count(
+                        f"g_cclosure_marshal_VOID__{props['value_type'].upper()} (closure"
+                    ),
+                    1,
+                )
 
     @unittest.skipIf(on_win32(), "requires /dev/stdout")
     def test_generate_signals_marshallers_multiple_args(self):
@@ -897,7 +1017,7 @@ G_END_DECLS
         for props in self.ARGUMENTS_TYPES.values():
             self.assertIs(
                 stripped_out.count(
-                    f"g_value_get_{props['value_type']} (param_values + {index})"
+                    f"g_marshal_value_peek_{props['value_type']} (param_values + {index})"
                 ),
                 1,
             )
@@ -931,9 +1051,21 @@ G_END_DECLS
         self.assertIs(stripped_out.count(f"{func_name},"), 1)
         self.assertIs(stripped_out.count(f"{func_name} ("), 1)
 
-        self.assertIs(stripped_out.count("g_value_get_object (param_values + 1)"), 2)
         self.assertIs(
-            stripped_out.count("g_value_set_boolean (return_value, v_return);"), 2
+            stripped_out.count("g_marshal_value_peek_object (param_values + 1)"), 1
+        )
+        self.assertIs(
+            stripped_out.count("g_value_set_boolean (return_value, v_return);"), 1
+        )
+
+        self.assertIs(
+            stripped_out.count(
+                "_g_dbus_codegen_marshal_BOOLEAN__OBJECT (\n    GClosure"
+            ),
+            1,
+        )
+        self.assertIs(
+            stripped_out.count("_g_dbus_codegen_marshal_BOOLEAN__OBJECT (closure"), 2
         )
 
     @unittest.skipIf(on_win32(), "requires /dev/stdout")
@@ -963,14 +1095,14 @@ G_END_DECLS
             self.assertIs(stripped_out.count(f"{func_name},"), 1)
             self.assertIs(stripped_out.count(f"{func_name} ("), 1)
             self.assertIs(
-                stripped_out.count("g_value_get_object (param_values + 1)"), 1
+                stripped_out.count("g_marshal_value_peek_object (param_values + 1)"), 1
             )
             self.assertIs(
                 stripped_out.count("g_value_set_boolean (return_value, v_return);"), 1
             )
             self.assertIs(
                 stripped_out.count(
-                    f"g_value_get_{props['value_type']} (param_values + 2)"
+                    f"g_marshal_value_peek_{props['value_type']} (param_values + 2)"
                 ),
                 1,
             )
@@ -1002,7 +1134,7 @@ G_END_DECLS
             self.assertIs(stripped_out.count(f"{func_name},"), 1)
             self.assertIs(stripped_out.count(f"{func_name} ("), 1)
             self.assertIs(
-                stripped_out.count("g_value_get_object (param_values + 1)"), 1
+                stripped_out.count("g_marshal_value_peek_object (param_values + 1)"), 1
             )
             self.assertIs(
                 stripped_out.count("g_value_set_boolean (return_value, v_return);"), 1
@@ -1023,6 +1155,14 @@ G_END_DECLS
                 <method name="MethodWithManyArgs">
                     {''.join(generated_args)}
                 </method>
+                <method name="SameMethodWithManyArgs">
+                    {''.join(generated_args)}
+                </method>
+              </interface>
+              <interface name="org.project.OtherCallableIface">
+                <method name="MethodWithManyArgs">
+                    {''.join(generated_args)}
+                </method>
               </interface>
             </node>"""
 
@@ -1040,14 +1180,15 @@ G_END_DECLS
         # Check access to MultipleArgsMethod arguments
         index = 1
         self.assertIs(
-            stripped_out.count(f"g_value_get_object (param_values + {index})"), 1
+            stripped_out.count(f"g_marshal_value_peek_object (param_values + {index})"),
+            1,
         )
         index += 1
 
         for props in self.ARGUMENTS_TYPES.values():
             self.assertIs(
                 stripped_out.count(
-                    f"g_value_get_{props['value_type']} (param_values + {index})"
+                    f"g_marshal_value_peek_{props['value_type']} (param_values + {index})"
                 ),
                 1,
             )
@@ -1056,6 +1197,18 @@ G_END_DECLS
         self.assertIs(
             stripped_out.count("g_value_set_boolean (return_value, v_return);"), 1
         )
+        func_types = "_".join(
+            [p["value_type"].upper() for p in self.ARGUMENTS_TYPES.values()]
+        )
+        func_name = f"_g_dbus_codegen_marshal_BOOLEAN__OBJECT_{func_types}"
+        self.assertIs(stripped_out.count(f"{func_name} (\n    GClosure"), 1)
+        self.assertIs(stripped_out.count(f"{func_name} (closure"), 3)
+
+        func_name = (
+            f"org_project_other_callable_iface_method_marshal_method_with_many_args"
+        )
+        self.assertIs(stripped_out.count(f"{func_name},"), 1)
+        self.assertIs(stripped_out.count(f"{func_name} ("), 1)
 
     @unittest.skipIf(on_win32(), "requires /dev/stdout")
     def test_generate_methods_marshallers_multiple_out_args(self):
@@ -1088,7 +1241,8 @@ G_END_DECLS
         # Check access to MultipleArgsMethod arguments
         index = 1
         self.assertIs(
-            stripped_out.count(f"g_value_get_object (param_values + {index})"), 1
+            stripped_out.count(f"g_marshal_value_peek_object (param_values + {index})"),
+            1,
         )
         index += 1
 
@@ -1097,6 +1251,11 @@ G_END_DECLS
 
         self.assertIs(
             stripped_out.count("g_value_set_boolean (return_value, v_return);"), 1
+        )
+
+        self.assertIs(
+            stripped_out.count("_g_dbus_codegen_marshal_BOOLEAN__OBJECT (closure"),
+            1,
         )
 
     @unittest.skipIf(on_win32(), "requires /dev/stdout")
@@ -1126,17 +1285,20 @@ G_END_DECLS
 
         index = 1
         self.assertIs(
-            stripped_out.count(f"g_value_get_object (param_values + {index})"), 1
+            stripped_out.count(f"g_marshal_value_peek_object (param_values + {index})"),
+            1,
         )
         index += 1
 
         self.assertIs(
-            stripped_out.count(f"g_value_get_object (param_values + {index})"), 1
+            stripped_out.count(f"g_marshal_value_peek_object (param_values + {index})"),
+            1,
         )
 
         index += 1
         self.assertIs(
-            stripped_out.count(f"g_value_get_string (param_values + {index})"), 1
+            stripped_out.count(f"g_marshal_value_peek_string (param_values + {index})"),
+            1,
         )
         index += 1
 

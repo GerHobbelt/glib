@@ -1462,6 +1462,7 @@ class CodeGenerator:
         self.glib_min_required = glib_min_required
         self.symbol_decoration_define = symbol_decoration_define
         self.outfile = outfile
+        self.marshallers = set()
 
     # ----------------------------------------------------------------------------------------------------
 
@@ -1484,6 +1485,55 @@ class CodeGenerator:
 
         self.outfile.write(
             "#ifdef G_OS_UNIX\n" "#  include <gio/gunixfdlist.h>\n" "#endif\n" "\n"
+        )
+
+        self.outfile.write(
+            """#ifdef G_ENABLE_DEBUG
+#define g_marshal_value_peek_boolean(v)  g_value_get_boolean (v)
+#define g_marshal_value_peek_char(v)     g_value_get_schar (v)
+#define g_marshal_value_peek_uchar(v)    g_value_get_uchar (v)
+#define g_marshal_value_peek_int(v)      g_value_get_int (v)
+#define g_marshal_value_peek_uint(v)     g_value_get_uint (v)
+#define g_marshal_value_peek_long(v)     g_value_get_long (v)
+#define g_marshal_value_peek_ulong(v)    g_value_get_ulong (v)
+#define g_marshal_value_peek_int64(v)    g_value_get_int64 (v)
+#define g_marshal_value_peek_uint64(v)   g_value_get_uint64 (v)
+#define g_marshal_value_peek_enum(v)     g_value_get_enum (v)
+#define g_marshal_value_peek_flags(v)    g_value_get_flags (v)
+#define g_marshal_value_peek_float(v)    g_value_get_float (v)
+#define g_marshal_value_peek_double(v)   g_value_get_double (v)
+#define g_marshal_value_peek_string(v)   (char*) g_value_get_string (v)
+#define g_marshal_value_peek_param(v)    g_value_get_param (v)
+#define g_marshal_value_peek_boxed(v)    g_value_get_boxed (v)
+#define g_marshal_value_peek_pointer(v)  g_value_get_pointer (v)
+#define g_marshal_value_peek_object(v)   g_value_get_object (v)
+#define g_marshal_value_peek_variant(v)  g_value_get_variant (v)
+#else /* !G_ENABLE_DEBUG */
+/* WARNING: This code accesses GValues directly, which is UNSUPPORTED API.
+ *          Do not access GValues directly in your code. Instead, use the
+ *          g_value_get_*() functions
+ */
+#define g_marshal_value_peek_boolean(v)  (v)->data[0].v_int
+#define g_marshal_value_peek_char(v)     (v)->data[0].v_int
+#define g_marshal_value_peek_uchar(v)    (v)->data[0].v_uint
+#define g_marshal_value_peek_int(v)      (v)->data[0].v_int
+#define g_marshal_value_peek_uint(v)     (v)->data[0].v_uint
+#define g_marshal_value_peek_long(v)     (v)->data[0].v_long
+#define g_marshal_value_peek_ulong(v)    (v)->data[0].v_ulong
+#define g_marshal_value_peek_int64(v)    (v)->data[0].v_int64
+#define g_marshal_value_peek_uint64(v)   (v)->data[0].v_uint64
+#define g_marshal_value_peek_enum(v)     (v)->data[0].v_long
+#define g_marshal_value_peek_flags(v)    (v)->data[0].v_ulong
+#define g_marshal_value_peek_float(v)    (v)->data[0].v_float
+#define g_marshal_value_peek_double(v)   (v)->data[0].v_double
+#define g_marshal_value_peek_string(v)   (v)->data[0].v_pointer
+#define g_marshal_value_peek_param(v)    (v)->data[0].v_pointer
+#define g_marshal_value_peek_boxed(v)    (v)->data[0].v_pointer
+#define g_marshal_value_peek_pointer(v)  (v)->data[0].v_pointer
+#define g_marshal_value_peek_object(v)   (v)->data[0].v_pointer
+#define g_marshal_value_peek_variant(v)  (v)->data[0].v_pointer
+#endif /* !G_ENABLE_DEBUG */"""
+            "\n\n"
         )
 
         self.outfile.write(
@@ -2531,15 +2581,32 @@ class CodeGenerator:
         self.generate_marshaller_body(func_name, in_args, ret_arg)
         self.outfile.write("}\n" "\n")
 
-    def generate_marshaller_declaration(self, func_name, uses_ret=False):
+    def generate_marshaller_wrapper(self, wrapper_name, wrapped_func):
+        self.generate_marshaller_declaration(
+            wrapper_name,
+            uses_ret=True,
+            uses_hint=True,
+            inline=True,
+        )
+        self.outfile.write("{\n")
         self.outfile.write(
-            "static void\n"
+            f"  {wrapped_func} (closure,\n"
+            "    return_value, n_param_values, param_values, "
+            "invocation_hint, marshal_data);\n"
+        )
+        self.outfile.write("}\n" "\n")
+
+    def generate_marshaller_declaration(
+        self, func_name, uses_ret=False, uses_hint=False, inline=False
+    ):
+        self.outfile.write(
+            f"{'inline ' if inline else ''}static void\n"
             f"{func_name} (\n"
             "    GClosure     *closure,\n"
             f"    GValue       *return_value{' G_GNUC_UNUSED' if not uses_ret else ''},\n"
             "    unsigned int  n_param_values,\n"
             "    const GValue *param_values,\n"
-            "    void         *invocation_hint G_GNUC_UNUSED,\n"
+            f"    void         *invocation_hint{' G_GNUC_UNUSED' if not uses_hint else ''},\n"
             "    void         *marshal_data)\n"
         )
 
@@ -2603,16 +2670,53 @@ class CodeGenerator:
                 "\n" f"  {ret_arg.gvalue_set} (return_value, v_return);\n"
             )
 
+    def generic_marshaller_name(self, args=[], ret=None):
+        name = "_g_dbus_codegen_marshal_"
+        name += f"{ret.gvalue_type.upper() if ret else 'VOID'}__"
+        if args:
+            name += "_".join(f"{a.gvalue_type.upper()}" for a in args)
+        else:
+            name += "VOID"
+        return name
+
+    def generic_marshaller_name_for_type(self, t):
+        assert isinstance(t, (dbustypes.Signal, dbustypes.Method))
+
+        if not t.marshaller_ret_arg:
+            if not t.marshaller_in_args:
+                return "g_cclosure_marshal_VOID__VOID"
+            elif (
+                len(t.marshaller_in_args) == 1
+                and t.marshaller_in_args[0].gclosure_marshaller
+            ):
+                return t.marshaller_in_args[0].gclosure_marshaller
+
+        return self.generic_marshaller_name(t.marshaller_in_args, t.marshaller_ret_arg)
+
+    def generate_generic_marshallers(self, i):
+        for t in i.signals + i.methods:
+            marshaller_name = self.generic_marshaller_name_for_type(t)
+            if marshaller_name.startswith("g_cclosure_"):
+                self.marshallers.add(marshaller_name)
+                continue
+
+            if marshaller_name in self.marshallers:
+                continue
+
+            self.generate_marshaller(
+                marshaller_name, t.marshaller_in_args, t.marshaller_ret_arg
+            )
+            self.marshallers.add(marshaller_name)
+
     def generate_marshaller_for_type(self, i, t):
         assert isinstance(t, (dbustypes.Signal, dbustypes.Method))
 
         kind_uscore = utils.camel_case_to_uscore(t.__class__.__name__.lower())
+        func_name = f"{i.name_lower}_{kind_uscore}_marshal_{t.name_lower}"
+        marshaller_name = self.generic_marshaller_name_for_type(t)
+        assert marshaller_name in self.marshallers
 
-        self.generate_marshaller(
-            func_name=f"{i.name_lower}_{kind_uscore}_marshal_{t.name_lower}",
-            in_args=t.marshaller_in_args,
-            ret_arg=t.marshaller_ret_arg,
-        )
+        self.generate_marshaller_wrapper(func_name, marshaller_name)
 
     def generate_signal_marshallers(self, i):
         for s in i.signals:
@@ -5344,6 +5448,8 @@ class CodeGenerator:
 
     def generate(self):
         self.generate_body_preamble()
+        for i in self.ifaces:
+            self.generate_generic_marshallers(i)
         for i in self.ifaces:
             self.generate_interface_intro(i)
             self.generate_signals_enum_for_interface(i)
