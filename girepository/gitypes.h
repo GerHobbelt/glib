@@ -28,6 +28,8 @@
 #error "Only <girepository.h> can be included directly."
 #endif
 
+#include <stdint.h>
+
 #include <glib.h>
 #include <glib-object.h>
 
@@ -67,6 +69,10 @@ GI_AVAILABLE_IN_ALL GType gi_union_info_get_type (void);
 typedef struct _GIEnumInfo GIEnumInfo;
 GI_AVAILABLE_IN_ALL GType gi_enum_info_get_type (void);
 
+/* Documented in giflagsinfo.c */
+typedef struct _GIFlagsInfo GIFlagsInfo;
+GI_AVAILABLE_IN_ALL GType gi_flags_info_get_type (void);
+
 /* Documented in giobjectinfo.c */
 typedef struct _GIObjectInfo GIObjectInfo;
 GI_AVAILABLE_IN_ALL GType gi_object_info_get_type (void);
@@ -74,6 +80,10 @@ GI_AVAILABLE_IN_ALL GType gi_object_info_get_type (void);
 /* Documented in giinterfaceinfo.c */
 typedef struct _GIInterfaceInfo GIInterfaceInfo;
 GI_AVAILABLE_IN_ALL GType gi_interface_info_get_type (void);
+
+/* Documented in giboxedinfo.c */
+typedef struct _GIBoxedInfo GIBoxedInfo;
+GI_AVAILABLE_IN_ALL GType gi_boxed_info_get_type (void);
 
 /* Documented in giconstantinfo.c */
 typedef struct _GIConstantInfo GIConstantInfo;
@@ -113,27 +123,27 @@ GI_AVAILABLE_IN_ALL GType gi_unresolved_info_get_type (void);
 
 union _GIArgument
 {
-  gboolean v_boolean;
-  gint8    v_int8;
-  guint8   v_uint8;
-  gint16   v_int16;
-  guint16  v_uint16;
-  gint32   v_int32;
-  guint32  v_uint32;
-  gint64   v_int64;
-  guint64  v_uint64;
-  gfloat   v_float;
-  gdouble  v_double;
-  gshort   v_short;
-  gushort  v_ushort;
-  gint     v_int;
-  guint    v_uint;
-  glong    v_long;
-  gulong   v_ulong;
-  gssize   v_ssize;
-  gsize    v_size;
-  gchar *  v_string;
-  gpointer v_pointer;
+  gboolean        v_boolean;
+  int8_t          v_int8;
+  uint8_t         v_uint8;
+  int16_t         v_int16;
+  uint16_t        v_uint16;
+  int32_t         v_int32;
+  uint32_t        v_uint32;
+  int64_t         v_int64;
+  uint64_t        v_uint64;
+  float           v_float;
+  double          v_double;
+  short           v_short;
+  unsigned short  v_ushort;
+  int             v_int;
+  unsigned int    v_uint;
+  long            v_long;
+  unsigned long   v_ulong;
+  gssize          v_ssize;
+  size_t          v_size;
+  char           *v_string;
+  void           *v_pointer;
 };
 
 /**
@@ -179,7 +189,6 @@ typedef union _GIArgument GIArgument;
  * @GI_INFO_TYPE_OBJECT: object, see [class@GIRepository.ObjectInfo]
  * @GI_INFO_TYPE_INTERFACE: interface, see [class@GIRepository.InterfaceInfo]
  * @GI_INFO_TYPE_CONSTANT: constant, see [class@GIRepository.ConstantInfo]
- * @GI_INFO_TYPE_INVALID_0: deleted, used to be `GI_INFO_TYPE_ERROR_DOMAIN`.
  * @GI_INFO_TYPE_UNION: union, see [class@GIRepository.UnionInfo]
  * @GI_INFO_TYPE_VALUE: enum value, see [class@GIRepository.ValueInfo]
  * @GI_INFO_TYPE_SIGNAL: signal, see [class@GIRepository.SignalInfo]
@@ -214,23 +223,22 @@ typedef enum
   GI_INFO_TYPE_CALLBACK,
   GI_INFO_TYPE_STRUCT,
   GI_INFO_TYPE_BOXED,
-  GI_INFO_TYPE_ENUM,         /*  5 */
+  GI_INFO_TYPE_ENUM,             /*  5 */
   GI_INFO_TYPE_FLAGS,
   GI_INFO_TYPE_OBJECT,
   GI_INFO_TYPE_INTERFACE,
   GI_INFO_TYPE_CONSTANT,
-  GI_INFO_TYPE_INVALID_0,    /* 10 */
-  GI_INFO_TYPE_UNION,
+  GI_INFO_TYPE_UNION,            /* 10 */
   GI_INFO_TYPE_VALUE,
   GI_INFO_TYPE_SIGNAL,
   GI_INFO_TYPE_VFUNC,
-  GI_INFO_TYPE_PROPERTY,     /* 15 */
-  GI_INFO_TYPE_FIELD,
+  GI_INFO_TYPE_PROPERTY,
+  GI_INFO_TYPE_FIELD,            /* 15 */
   GI_INFO_TYPE_ARG,
   GI_INFO_TYPE_TYPE,
   GI_INFO_TYPE_UNRESOLVED,
-  GI_INFO_TYPE_CALLABLE,     /* 20 */
-  GI_INFO_TYPE_REGISTERED_TYPE,
+  GI_INFO_TYPE_CALLABLE,
+  GI_INFO_TYPE_REGISTERED_TYPE,  /* 20 */
   /* keep GI_INFO_TYPE_N_TYPES in sync with this */
 } GIInfoType;
 
@@ -433,7 +441,6 @@ typedef enum
  * @GI_VFUNC_MUST_CHAIN_UP: chains up to the parent type
  * @GI_VFUNC_MUST_OVERRIDE: overrides
  * @GI_VFUNC_MUST_NOT_OVERRIDE: does not override
- * @GI_VFUNC_THROWS: includes a [type@GLib.Error]
  *
  * Flags of a [class@GIRepository.VFuncInfo] struct.
  *
@@ -444,7 +451,6 @@ typedef enum
   GI_VFUNC_MUST_CHAIN_UP     = 1 << 0,
   GI_VFUNC_MUST_OVERRIDE     = 1 << 1,
   GI_VFUNC_MUST_NOT_OVERRIDE = 1 << 2,
-  GI_VFUNC_THROWS =            1 << 3
 } GIVFuncInfoFlags;
 
 /**
@@ -454,7 +460,6 @@ typedef enum
  * @GI_FUNCTION_IS_GETTER: is a getter of a [class@GIRepository.PropertyInfo].
  * @GI_FUNCTION_IS_SETTER: is a setter of a [class@GIRepository.PropertyInfo].
  * @GI_FUNCTION_WRAPS_VFUNC: represents a virtual function.
- * @GI_FUNCTION_THROWS: the function may throw an error.
  *
  * Flags for a [class@GIRepository.FunctionInfo] struct.
  *
@@ -467,7 +472,6 @@ typedef enum
   GI_FUNCTION_IS_GETTER      = 1 << 2,
   GI_FUNCTION_IS_SETTER      = 1 << 3,
   GI_FUNCTION_WRAPS_VFUNC    = 1 << 4,
-  GI_FUNCTION_THROWS         = 1 << 5
 } GIFunctionInfoFlags;
 
 G_END_DECLS

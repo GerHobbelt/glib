@@ -38,7 +38,7 @@
 static ffi_type *
 gi_type_tag_get_ffi_type_internal (GITypeTag   tag,
                                    gboolean    is_pointer,
-				   gboolean    is_enum)
+                                   gboolean    is_enum)
 {
   switch (tag)
     {
@@ -83,13 +83,13 @@ gi_type_tag_get_ffi_type_internal (GITypeTag   tag,
       return &ffi_type_pointer;
     case GI_TYPE_TAG_INTERFACE:
       {
-	/* We need to handle enums specially:
-	 * https://bugzilla.gnome.org/show_bug.cgi?id=665150
-	 */
+        /* We need to handle enums specially:
+         * https://bugzilla.gnome.org/show_bug.cgi?id=665150
+         */
         if (!is_enum)
           return &ffi_type_pointer;
-	else
-	  return &ffi_type_sint32;
+        else
+          return &ffi_type_sint32;
       }
     case GI_TYPE_TAG_VOID:
       if (is_pointer)
@@ -118,7 +118,7 @@ gi_type_tag_get_ffi_type_internal (GITypeTag   tag,
  */
 ffi_type *
 gi_type_tag_get_ffi_type (GITypeTag   type_tag,
-			  gboolean    is_pointer)
+                          gboolean    is_pointer)
 {
   return gi_type_tag_get_ffi_type_internal (type_tag, is_pointer, FALSE);
 }
@@ -171,11 +171,11 @@ gi_type_info_get_ffi_type (GITypeInfo *info)
  */
 static ffi_type **
 gi_callable_info_get_ffi_arg_types (GICallableInfo *callable_info,
-                                    int            *n_args_p)
+                                    size_t         *n_args_p)
 {
     ffi_type **arg_types;
     gboolean is_method, throws;
-    gint n_args, n_invoke_args, i, offset;
+    size_t n_args, n_invoke_args, i, offset;
 
     g_return_val_if_fail (callable_info != NULL, NULL);
 
@@ -220,6 +220,9 @@ gi_callable_info_get_ffi_arg_types (GICallableInfo *callable_info,
             default:
               g_assert_not_reached ();
           }
+
+        gi_base_info_clear (&arg_type);
+        gi_base_info_clear (&arg_info);
       }
 
     arg_types[n_invoke_args] = NULL;
@@ -266,6 +269,9 @@ gi_callable_info_get_ffi_return_type (GICallableInfo *callable_info)
  * by a language binding could contain a [type@GIRepository.FunctionInvoker]
  * structure inside the binding’s function mapping.
  *
+ * @invoker must be freed using [method@GIRepository.FunctionInvoker.clear]
+ * when it’s finished with.
+ *
  * Returns: `TRUE` on success, `FALSE` otherwise with @error set.
  * Since: 2.80
  */
@@ -275,7 +281,7 @@ gi_function_info_prep_invoker (GIFunctionInfo     *info,
                                GError            **error)
 {
   const char *symbol;
-  gpointer addr;
+  void *addr;
 
   g_return_val_if_fail (info != NULL, FALSE);
   g_return_val_if_fail (invoker != NULL, FALSE);
@@ -315,13 +321,13 @@ gi_function_info_prep_invoker (GIFunctionInfo     *info,
  * Since: 2.80
  */
 gboolean
-gi_function_invoker_new_for_address (gpointer            addr,
+gi_function_invoker_new_for_address (void               *addr,
                                      GICallableInfo     *info,
                                      GIFunctionInvoker  *invoker,
                                      GError            **error)
 {
   ffi_type **atypes;
-  gint n_args;
+  size_t n_args;
 
   g_return_val_if_fail (info != NULL, FALSE);
   g_return_val_if_fail (invoker != NULL, FALSE);
@@ -336,7 +342,7 @@ gi_function_invoker_new_for_address (gpointer            addr,
 }
 
 /**
- * gi_function_invoker_destroy:
+ * gi_function_invoker_clear:
  * @invoker: (transfer none): A #GIFunctionInvoker
  *
  * Release all resources allocated for the internals of @invoker.
@@ -347,15 +353,15 @@ gi_function_invoker_new_for_address (gpointer            addr,
  * Since: 2.80
  */
 void
-gi_function_invoker_destroy (GIFunctionInvoker *invoker)
+gi_function_invoker_clear (GIFunctionInvoker *invoker)
 {
   g_free (invoker->cif.arg_types);
 }
 
 typedef struct {
   ffi_closure ffi_closure;
-  gpointer writable_self;
-  gpointer native_address;
+  void *writable_self;
+  void *native_address;
 } GIClosureWrapper;
 
 /**
@@ -376,10 +382,10 @@ ffi_closure *
 gi_callable_info_create_closure (GICallableInfo       *callable_info,
                                  ffi_cif              *cif,
                                  GIFFIClosureCallback  callback,
-                                 gpointer              user_data)
+                                 void                 *user_data)
 {
-  gpointer exec_ptr;
-  int n_args;
+  void *exec_ptr;
+  size_t n_args;
   ffi_type **atypes;
   GIClosureWrapper *closure;
   ffi_status status;
@@ -391,7 +397,7 @@ gi_callable_info_create_closure (GICallableInfo       *callable_info,
   closure = ffi_closure_alloc (sizeof (GIClosureWrapper), &exec_ptr);
   if (!closure)
     {
-      g_warning ("could not allocate closure\n");
+      g_warning ("could not allocate closure");
       return NULL;
     }
   closure->writable_self = closure;
@@ -404,7 +410,7 @@ gi_callable_info_create_closure (GICallableInfo       *callable_info,
                          atypes);
   if (status != FFI_OK)
     {
-      g_warning ("ffi_prep_cif failed: %d\n", status);
+      g_warning ("ffi_prep_cif failed: %d", status);
       ffi_closure_free (closure);
       return NULL;
     }
@@ -412,7 +418,7 @@ gi_callable_info_create_closure (GICallableInfo       *callable_info,
   status = ffi_prep_closure_loc (&closure->ffi_closure, cif, callback, user_data, exec_ptr);
   if (status != FFI_OK)
     {
-      g_warning ("ffi_prep_closure failed: %d\n", status);
+      g_warning ("ffi_prep_closure failed: %d", status);
       ffi_closure_free (closure);
       return NULL;
     }
@@ -431,7 +437,7 @@ gi_callable_info_create_closure (GICallableInfo       *callable_info,
  * Returns: (transfer none): native address
  * Since: 2.80
  */
-gpointer *
+void **
 gi_callable_info_get_closure_native_address (GICallableInfo *callable_info,
                                              ffi_closure    *closure)
 {

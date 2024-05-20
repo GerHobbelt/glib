@@ -33,6 +33,22 @@
 
 G_BEGIN_DECLS
 
+#define GI_TYPE_REGISTERED_TYPE_INFO (gi_registered_type_info_get_type ())
+
+/**
+ * GI_REGISTERED_TYPE_INFO:
+ * @info: Info object which is subject to casting.
+ *
+ * Casts a [type@GIRepository.RegisteredTypeInfo] or derived pointer into a
+ * `(GIRegisteredTypeInfo*)` pointer.
+ *
+ * Depending on the current debugging level, this function may invoke
+ * certain runtime checks to identify invalid casts.
+ *
+ * Since: 2.80
+ */
+#define GI_REGISTERED_TYPE_INFO(info) (G_TYPE_CHECK_INSTANCE_CAST ((info), GI_TYPE_REGISTERED_TYPE_INFO, GIRegisteredTypeInfo))
+
 /**
  * GI_IS_REGISTERED_TYPE_INFO:
  * @info: an info structure
@@ -42,21 +58,13 @@ G_BEGIN_DECLS
  *
  * Since: 2.80
  */
-#define GI_IS_REGISTERED_TYPE_INFO(info) \
-    ((gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_BOXED) || \
-     (gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_ENUM) || \
-     (gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_FLAGS) || \
-     (gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_INTERFACE) || \
-     (gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_OBJECT) || \
-     (gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_STRUCT) || \
-     (gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_UNION) || \
-     (gi_base_info_get_info_type ((GIBaseInfo*) info) == GI_INFO_TYPE_BOXED))
+#define GI_IS_REGISTERED_TYPE_INFO(info) (G_TYPE_CHECK_INSTANCE_TYPE ((info), GI_TYPE_OBJECT_INFO))
 
 GI_AVAILABLE_IN_ALL
-const gchar *          gi_registered_type_info_get_type_name (GIRegisteredTypeInfo *info);
+const char *           gi_registered_type_info_get_type_name (GIRegisteredTypeInfo *info);
 
 GI_AVAILABLE_IN_ALL
-const gchar *          gi_registered_type_info_get_type_init_function_name (GIRegisteredTypeInfo *info);
+const char *           gi_registered_type_info_get_type_init_function_name (GIRegisteredTypeInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GType                  gi_registered_type_info_get_g_type    (GIRegisteredTypeInfo *info);

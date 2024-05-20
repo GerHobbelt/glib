@@ -64,7 +64,7 @@ value_base_info_copy_value (const GValue *src,
     dst->data[0].v_pointer = NULL;
 }
 
-static gpointer
+static void *
 value_base_info_peek_pointer (const GValue *value)
 {
   return value->data[0].v_pointer;
@@ -96,7 +96,7 @@ value_base_info_collect_value (GValue      *value,
   return NULL;
 }
 
-static gchar *
+static char *
 value_base_info_lcopy_value (const GValue *value,
                              guint         n_collect_values,
                              GTypeCValue  *collect_values,
@@ -123,12 +123,9 @@ value_base_info_lcopy_value (const GValue *value,
 static void
 gi_base_info_finalize (GIBaseInfo *self)
 {
-  if (self->container && self->container->ref_count != INVALID_REFCOUNT)
+  if (self->ref_count != INVALID_REFCOUNT &&
+      self->container && self->container->ref_count != INVALID_REFCOUNT)
     gi_base_info_unref (self->container);
-
-  g_clear_object (&self->repository);
-
-  g_type_free_instance ((GTypeInstance *) self);
 }
 
 static void
@@ -141,6 +138,9 @@ gi_base_info_class_init (GIBaseInfoClass *klass)
 static void
 gi_base_info_init (GIBaseInfo *self)
 {
+  /* Initialise a dynamically allocated #GIBaseInfo’s members.
+   *
+   * This function *must* be kept in sync with gi_info_init(). */
   g_atomic_ref_count_init (&self->ref_count);
 }
 
@@ -204,6 +204,9 @@ gi_base_info_get_type (void)
  * @type_name: the name of the type
  * @instance_size: size (in bytes) of the type’s instance struct
  * @class_init: class init function for the type
+ * @parent_type: [type@GObject.Type] for the parent type; this will typically be
+ *   `GI_TYPE_BASE_INFO`
+ * @type_flags: flags for the type
  *
  * Registers a new [type@GIRepository.BaseInfo] type for the given @type_name
  * using the type information provided.
@@ -213,8 +216,10 @@ gi_base_info_get_type (void)
  */
 GType
 gi_base_info_type_register_static (const char     *type_name,
-                                   gsize           instance_size,
-                                   GClassInitFunc  class_init)
+                                   size_t          instance_size,
+                                   GClassInitFunc  class_init,
+                                   GType           parent_type,
+                                   GTypeFlags      type_flags)
 {
   GTypeInfo info;
 
@@ -228,7 +233,7 @@ gi_base_info_type_register_static (const char     *type_name,
   info.instance_init = NULL;
   info.value_table = NULL;
 
-  return g_type_register_static (GI_TYPE_BASE_INFO, type_name, &info, 0);
+  return g_type_register_static (parent_type, type_name, &info, type_flags);
 }
 
 static GType gi_base_info_types[GI_INFO_TYPE_N_TYPES];
@@ -249,8 +254,10 @@ GI_DEFINE_BASE_INFO_TYPE (gi_registered_type_info, GI_INFO_TYPE_REGISTERED_TYPE)
 GI_DEFINE_BASE_INFO_TYPE (gi_struct_info, GI_INFO_TYPE_STRUCT)
 GI_DEFINE_BASE_INFO_TYPE (gi_union_info, GI_INFO_TYPE_UNION)
 GI_DEFINE_BASE_INFO_TYPE (gi_enum_info, GI_INFO_TYPE_ENUM)
+GI_DEFINE_BASE_INFO_TYPE (gi_flags_info, GI_INFO_TYPE_FLAGS)
 GI_DEFINE_BASE_INFO_TYPE (gi_object_info, GI_INFO_TYPE_OBJECT)
 GI_DEFINE_BASE_INFO_TYPE (gi_interface_info, GI_INFO_TYPE_INTERFACE)
+GI_DEFINE_BASE_INFO_TYPE (gi_boxed_info, GI_INFO_TYPE_BOXED)
 GI_DEFINE_BASE_INFO_TYPE (gi_constant_info, GI_INFO_TYPE_CONSTANT)
 GI_DEFINE_BASE_INFO_TYPE (gi_value_info, GI_INFO_TYPE_VALUE)
 GI_DEFINE_BASE_INFO_TYPE (gi_signal_info, GI_INFO_TYPE_SIGNAL)
@@ -264,7 +271,7 @@ GI_DEFINE_BASE_INFO_TYPE (gi_unresolved_info, GI_INFO_TYPE_UNRESOLVED)
 void
 gi_base_info_init_types (void)
 {
-  static gsize register_types_once = 0;
+  static size_t register_types_once = 0;
 
   if (g_once_init_enter (&register_types_once))
     {
@@ -272,36 +279,47 @@ gi_base_info_init_types (void)
         {
           GIInfoType info_type;
           const char *type_name;
-          gsize instance_size;
+          size_t instance_size;
           GClassInitFunc class_init;
+          GIInfoType parent_info_type;  /* 0 for GIBaseInfo */
+          GTypeFlags type_flags;
         }
       types[] =
         {
-          { GI_INFO_TYPE_CALLABLE, "GICallableInfo", sizeof (GICallableInfo), gi_callable_info_class_init },
-          { GI_INFO_TYPE_FUNCTION, "GIFunctionInfo", sizeof (GIFunctionInfo), gi_function_info_class_init },
-          { GI_INFO_TYPE_CALLBACK, "GICallbackInfo", sizeof (GICallbackInfo), gi_callback_info_class_init },
-          { GI_INFO_TYPE_REGISTERED_TYPE, "GIRegisteredTypeInfo", sizeof (GIRegisteredTypeInfo), gi_registered_type_info_class_init },
-          { GI_INFO_TYPE_STRUCT, "GIStructInfo", sizeof (GIStructInfo), gi_struct_info_class_init },
-          { GI_INFO_TYPE_UNION, "GIUnionInfo", sizeof (GIUnionInfo), gi_union_info_class_init },
-          { GI_INFO_TYPE_ENUM, "GIEnumInfo", sizeof (GIEnumInfo), gi_enum_info_class_init },
-          { GI_INFO_TYPE_OBJECT, "GIObjectInfo", sizeof (GIObjectInfo), gi_object_info_class_init },
-          { GI_INFO_TYPE_INTERFACE, "GIInterfaceInfo", sizeof (GIInterfaceInfo), gi_interface_info_class_init },
-          { GI_INFO_TYPE_CONSTANT, "GIConstantInfo", sizeof (GIConstantInfo), gi_constant_info_class_init },
-          { GI_INFO_TYPE_VALUE, "GIValueInfo", sizeof (GIValueInfo), gi_value_info_class_init },
-          { GI_INFO_TYPE_SIGNAL, "GISignalInfo", sizeof (GISignalInfo), gi_signal_info_class_init },
-          { GI_INFO_TYPE_VFUNC, "GIVFuncInfo", sizeof (GIVFuncInfo), gi_vfunc_info_class_init },
-          { GI_INFO_TYPE_PROPERTY, "GIPropertyInfo", sizeof (GIPropertyInfo), gi_property_info_class_init },
-          { GI_INFO_TYPE_FIELD, "GIFieldInfo", sizeof (GIFieldInfo), gi_field_info_class_init },
-          { GI_INFO_TYPE_ARG, "GIArgInfo", sizeof (GIArgInfo), gi_arg_info_class_init },
-          { GI_INFO_TYPE_TYPE, "GITypeInfo", sizeof (GITypeInfo), gi_type_info_class_init },
-          { GI_INFO_TYPE_UNRESOLVED, "GIUnresolvedInfo", sizeof (GIUnresolvedInfo), gi_unresolved_info_class_init },
+          { GI_INFO_TYPE_CALLABLE, "GICallableInfo", sizeof (GICallableInfo), gi_callable_info_class_init, 0, G_TYPE_FLAG_ABSTRACT },
+          { GI_INFO_TYPE_FUNCTION, "GIFunctionInfo", sizeof (GIFunctionInfo), gi_function_info_class_init, GI_INFO_TYPE_CALLABLE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_CALLBACK, "GICallbackInfo", sizeof (GICallbackInfo), gi_callback_info_class_init, GI_INFO_TYPE_CALLABLE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_REGISTERED_TYPE, "GIRegisteredTypeInfo", sizeof (GIRegisteredTypeInfo), gi_registered_type_info_class_init, 0, G_TYPE_FLAG_ABSTRACT },
+          { GI_INFO_TYPE_STRUCT, "GIStructInfo", sizeof (GIStructInfo), gi_struct_info_class_init, GI_INFO_TYPE_REGISTERED_TYPE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_UNION, "GIUnionInfo", sizeof (GIUnionInfo), gi_union_info_class_init, GI_INFO_TYPE_REGISTERED_TYPE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_ENUM, "GIEnumInfo", sizeof (GIEnumInfo), gi_enum_info_class_init, GI_INFO_TYPE_REGISTERED_TYPE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_FLAGS, "GIFlagsInfo", sizeof (GIFlagsInfo), gi_flags_info_class_init, GI_INFO_TYPE_ENUM, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_OBJECT, "GIObjectInfo", sizeof (GIObjectInfo), gi_object_info_class_init, GI_INFO_TYPE_REGISTERED_TYPE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_INTERFACE, "GIInterfaceInfo", sizeof (GIInterfaceInfo), gi_interface_info_class_init, GI_INFO_TYPE_REGISTERED_TYPE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_BOXED, "GIBoxedInfo", sizeof (GIBoxedInfo), gi_boxed_info_class_init, GI_INFO_TYPE_REGISTERED_TYPE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_CONSTANT, "GIConstantInfo", sizeof (GIConstantInfo), gi_constant_info_class_init, 0, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_VALUE, "GIValueInfo", sizeof (GIValueInfo), gi_value_info_class_init, 0, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_SIGNAL, "GISignalInfo", sizeof (GISignalInfo), gi_signal_info_class_init, GI_INFO_TYPE_CALLABLE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_VFUNC, "GIVFuncInfo", sizeof (GIVFuncInfo), gi_vfunc_info_class_init, GI_INFO_TYPE_CALLABLE, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_PROPERTY, "GIPropertyInfo", sizeof (GIPropertyInfo), gi_property_info_class_init, 0, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_FIELD, "GIFieldInfo", sizeof (GIFieldInfo), gi_field_info_class_init, 0, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_ARG, "GIArgInfo", sizeof (GIArgInfo), gi_arg_info_class_init, 0, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_TYPE, "GITypeInfo", sizeof (GITypeInfo), gi_type_info_class_init, 0, G_TYPE_FLAG_NONE },
+          { GI_INFO_TYPE_UNRESOLVED, "GIUnresolvedInfo", sizeof (GIUnresolvedInfo), gi_unresolved_info_class_init, 0, G_TYPE_FLAG_NONE },
         };
 
-      for (gsize i = 0; i < G_N_ELEMENTS (types); i++)
+      for (size_t i = 0; i < G_N_ELEMENTS (types); i++)
         {
-          GType registered_type = gi_base_info_type_register_static (g_intern_static_string (types[i].type_name),
-                                                                     types[i].instance_size,
-                                                                     types[i].class_init);
+          GType registered_type, parent_type;
+
+          parent_type = (types[i].parent_info_type == 0) ? GI_TYPE_BASE_INFO : gi_base_info_types[types[i].parent_info_type];
+          g_assert (parent_type != G_TYPE_INVALID);
+
+          registered_type = gi_base_info_type_register_static (g_intern_static_string (types[i].type_name),
+                                                               types[i].instance_size,
+                                                               types[i].class_init,
+                                                               parent_type,
+                                                               types[i].type_flags);
           gi_base_info_types[types[i].info_type] = registered_type;
         }
 
@@ -315,12 +333,13 @@ gi_info_new_full (GIInfoType    type,
                   GIRepository *repository,
                   GIBaseInfo   *container,
                   GITypelib    *typelib,
-                  guint32       offset)
+                  uint32_t      offset)
 {
   GIRealInfo *info;
 
   g_return_val_if_fail (container != NULL || repository != NULL, NULL);
   g_return_val_if_fail (GI_IS_REPOSITORY (repository), NULL);
+  g_return_val_if_fail (offset <= G_MAXUINT32, NULL);
 
   gi_base_info_init_types ();
   g_assert (gi_base_info_types[type] != G_TYPE_INVALID);
@@ -334,7 +353,14 @@ gi_info_new_full (GIInfoType    type,
   if (container && container->ref_count != INVALID_REFCOUNT)
     gi_base_info_ref (info->container);
 
-  info->repository = g_object_ref (repository);
+  /* Don’t keep a strong ref, since the repository keeps a cache of #GIBaseInfos
+   * and holds refs on them. If we kept a ref here, there’d be a cycle.
+   * Don’t keep a weak ref either, as that would make creating/destroying a
+   * #GIBaseInfo noticeably more expensive, and infos are performance critical
+   * for bindings.
+   * As stated in the documentation, the mitigation here is to require the user
+   * to keep the #GIRepository alive longer than any of its #GIBaseInfos. */
+  info->repository = repository;
 
   return (GIBaseInfo*)info;
 }
@@ -357,7 +383,7 @@ GIBaseInfo *
 gi_info_new (GIInfoType     type,
              GIBaseInfo    *container,
              GITypelib     *typelib,
-             guint32        offset)
+             size_t         offset)
 {
   return gi_info_new_full (type, ((GIRealInfo*)container)->repository, container, typelib, offset);
 }
@@ -378,13 +404,27 @@ gi_info_new (GIInfoType     type,
  */
 void
 gi_info_init (GIRealInfo   *info,
-              GIInfoType    type,
+              GType         type,
               GIRepository *repository,
               GIBaseInfo   *container,
               GITypelib    *typelib,
-              guint32       offset)
+              uint32_t      offset)
 {
   memset (info, 0, sizeof (GIRealInfo));
+
+  /* Evil setup of a stack allocated #GTypeInstance. This is not something it’s
+   * really designed to do.
+   *
+   * This function *must* be kept in sync with gi_base_info_init(), which is
+   * the equivalent function for dynamically allocated types. */
+  info->parent_instance.g_class = g_type_class_ref (type);
+
+  /* g_type_create_instance() calls the #GInstanceInitFunc for each of the
+   * parent types, down to (and including) @type. We don’t need to do that, as
+   * #GIBaseInfo is fundamental so doesn’t have a parent type, the instance init
+   * function for #GIBaseInfo is gi_base_info_init() (which only sets the
+   * refcount, which we already do here), and subtypes of #GIBaseInfo don’t have
+   * instance init functions (see gi_base_info_type_register_static()). */
 
   /* Invalid refcount used to flag stack-allocated infos */
   info->ref_count = INVALID_REFCOUNT;
@@ -398,10 +438,38 @@ gi_info_init (GIRealInfo   *info,
   info->repository = repository;
 }
 
+/**
+ * gi_base_info_clear:
+ * @info: (type GIRepository.BaseInfo): a #GIBaseInfo
+ *
+ * Clears memory allocated internally by a stack-allocated
+ * [type@GIRepository.BaseInfo].
+ *
+ * This does not deallocate the [type@GIRepository.BaseInfo] struct itself.
+ *
+ * This must only be called on stack-allocated [type@GIRepository.BaseInfo]s.
+ * Use [method@GIRepository.BaseInfo.unref] for heap-allocated ones.
+ *
+ * Since: 2.80
+ */
+void
+gi_base_info_clear (void *info)
+{
+  GIBaseInfo *rinfo = (GIBaseInfo *) info;
+
+  g_return_if_fail (GI_IS_BASE_INFO (rinfo));
+
+  g_assert (rinfo->ref_count == INVALID_REFCOUNT);
+
+  GI_BASE_INFO_GET_CLASS (info)->finalize (rinfo);
+
+  g_type_class_unref (rinfo->parent_instance.g_class);
+}
+
 GIBaseInfo *
 gi_info_from_entry (GIRepository *repository,
                     GITypelib    *typelib,
-                    guint16       index)
+                    uint16_t      index)
 {
   GIBaseInfo *result;
   DirEntry *entry = gi_typelib_get_dir_entry (typelib, index);
@@ -410,8 +478,8 @@ gi_info_from_entry (GIRepository *repository,
     result = gi_info_new_full (entry->blob_type, repository, NULL, typelib, entry->offset);
   else
     {
-      const gchar *namespace = gi_typelib_get_string (typelib, entry->offset);
-      const gchar *name = gi_typelib_get_string (typelib, entry->name);
+      const char *namespace = gi_typelib_get_string (typelib, entry->offset);
+      const char *name = gi_typelib_get_string (typelib, entry->name);
 
       result = gi_repository_find_by_name (repository, namespace, name);
       if (result == NULL)
@@ -428,7 +496,7 @@ gi_info_from_entry (GIRepository *repository,
           unresolved->namespace = namespace;
 
           return (GIBaseInfo *)unresolved;
-	}
+        }
       return (GIBaseInfo *)result;
     }
 
@@ -438,7 +506,7 @@ gi_info_from_entry (GIRepository *repository,
 GITypeInfo *
 gi_type_info_new (GIBaseInfo *container,
                   GITypelib  *typelib,
-                  guint32     offset)
+                  uint32_t    offset)
 {
   SimpleTypeBlob *type = (SimpleTypeBlob *)&typelib->data[offset];
 
@@ -446,16 +514,31 @@ gi_type_info_new (GIBaseInfo *container,
                                      (type->flags.reserved == 0 && type->flags.reserved2 == 0) ? offset : type->offset);
 }
 
+/*< private >
+ * gi_type_info_init:
+ * @info: (out caller-allocates): caller-allocated #GITypeInfo to populate
+ * @container: (nullable): info which contains this one
+ * @typelib: typelib containing the info
+ * @offset: offset of the info within @typelib, in bytes
+ *
+ * Initialise a stack-allocated #GITypeInfo representing an object of type
+ * [type@GIRepository.TypeInfo] from @offset of @typelib.
+ *
+ * This is a specialised form of [func@GIRepository.info_init] for type
+ * information.
+ *
+ * Since: 2.80
+ */
 void
-gi_type_info_init (GIBaseInfo *info,
+gi_type_info_init (GITypeInfo *info,
                    GIBaseInfo *container,
                    GITypelib  *typelib,
-                   guint32     offset)
+                   uint32_t    offset)
 {
   GIRealInfo *rinfo = (GIRealInfo*)container;
   SimpleTypeBlob *type = (SimpleTypeBlob *)&typelib->data[offset];
 
-  gi_info_init ((GIRealInfo*)info, GI_INFO_TYPE_TYPE, rinfo->repository, container, typelib,
+  gi_info_init ((GIRealInfo*)info, GI_TYPE_TYPE_INFO, rinfo->repository, container, typelib,
                 (type->flags.reserved == 0 && type->flags.reserved2 == 0) ? offset : type->offset);
 }
 
@@ -498,7 +581,7 @@ gi_type_info_init (GIBaseInfo *info,
 
 /**
  * gi_base_info_ref:
- * @info: a #GIBaseInfo
+ * @info: (type GIRepository.BaseInfo): a #GIBaseInfo
  *
  * Increases the reference count of @info.
  *
@@ -506,9 +589,11 @@ gi_type_info_init (GIBaseInfo *info,
  * Since: 2.80
  */
 GIBaseInfo *
-gi_base_info_ref (GIBaseInfo *info)
+gi_base_info_ref (void *info)
 {
   GIRealInfo *rinfo = (GIRealInfo*)info;
+
+  g_return_val_if_fail (GI_IS_BASE_INFO (info), NULL);
 
   g_assert (rinfo->ref_count != INVALID_REFCOUNT);
   g_atomic_ref_count_inc (&rinfo->ref_count);
@@ -518,22 +603,30 @@ gi_base_info_ref (GIBaseInfo *info)
 
 /**
  * gi_base_info_unref:
- * @info: (transfer full): a #GIBaseInfo
+ * @info: (type GIRepository.BaseInfo) (transfer full): a #GIBaseInfo
  *
  * Decreases the reference count of @info. When its reference count
  * drops to 0, the info is freed.
  *
+ * This must not be called on stack-allocated [type@GIRepository.BaseInfo]s —
+ * use [method@GIRepository.BaseInfo.clear] for that.
+ *
  * Since: 2.80
  */
 void
-gi_base_info_unref (GIBaseInfo *info)
+gi_base_info_unref (void *info)
 {
   GIRealInfo *rinfo = (GIRealInfo*)info;
+
+  g_return_if_fail (GI_IS_BASE_INFO (info));
 
   g_assert (rinfo->ref_count > 0 && rinfo->ref_count != INVALID_REFCOUNT);
 
   if (g_atomic_ref_count_dec (&rinfo->ref_count))
-    GI_BASE_INFO_GET_CLASS (info)->finalize (info);
+    {
+      GI_BASE_INFO_GET_CLASS (info)->finalize (info);
+      g_type_free_instance ((GTypeInstance *) info);
+    }
 }
 
 /**
@@ -564,7 +657,7 @@ gi_base_info_get_info_type (GIBaseInfo *info)
  * Returns: (nullable): the name of @info or `NULL` if it lacks a name.
  * Since: 2.80
  */
-const gchar *
+const char *
 gi_base_info_get_name (GIBaseInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo*)info;
@@ -580,7 +673,6 @@ gi_base_info_get_name (GIBaseInfo *info)
     case GI_INFO_TYPE_OBJECT:
     case GI_INFO_TYPE_INTERFACE:
     case GI_INFO_TYPE_CONSTANT:
-    case GI_INFO_TYPE_INVALID_0:
     case GI_INFO_TYPE_UNION:
       {
         CommonBlob *blob = (CommonBlob *)&rinfo->typelib->data[rinfo->offset];
@@ -662,7 +754,7 @@ gi_base_info_get_name (GIBaseInfo *info)
  * Returns: the namespace
  * Since: 2.80
  */
-const gchar *
+const char *
 gi_base_info_get_namespace (GIBaseInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo*) info;
@@ -705,7 +797,6 @@ gi_base_info_is_deprecated (GIBaseInfo *info)
     case GI_INFO_TYPE_OBJECT:
     case GI_INFO_TYPE_INTERFACE:
     case GI_INFO_TYPE_CONSTANT:
-    case GI_INFO_TYPE_INVALID_0:
       {
         CommonBlob *blob = (CommonBlob *)&rinfo->typelib->data[rinfo->offset];
 
@@ -759,16 +850,16 @@ gi_base_info_is_deprecated (GIBaseInfo *info)
  *   attribute exists
  * Since: 2.80
  */
-const gchar *
+const char *
 gi_base_info_get_attribute (GIBaseInfo  *info,
-                            const gchar *name)
+                            const char *name)
 {
-  GIAttributeIter iter = { 0, };
+  GIAttributeIter iter = GI_ATTRIBUTE_ITER_INIT;
   const char *curname, *curvalue;
   while (gi_base_info_iterate_attributes (info, &iter, &curname, &curvalue))
     {
       if (strcmp (name, curname) == 0)
-        return (const gchar*) curvalue;
+        return (const char *) curvalue;
     }
 
   return NULL;
@@ -802,7 +893,7 @@ cmp_attribute (const void *av,
  */
 AttributeBlob *
 _attribute_blob_find_first (GIBaseInfo *info,
-                            guint32     blob_offset)
+                            uint32_t    blob_offset)
 {
   GIRealInfo *rinfo = (GIRealInfo *) info;
   Header *header = (Header *)rinfo->typelib->data;
@@ -851,7 +942,7 @@ _attribute_blob_find_first (GIBaseInfo *info,
  * void
  * print_attributes (GIBaseInfo *info)
  * {
- *   GIAttributeIter iter = { 0, };
+ *   GIAttributeIter iter = GI_ATTRIBUTE_ITER_INIT;
  *   const char *name;
  *   const char *value;
  *   while (gi_base_info_iterate_attributes (info, &iter, &name, &value))
@@ -867,8 +958,8 @@ _attribute_blob_find_first (GIBaseInfo *info,
 gboolean
 gi_base_info_iterate_attributes (GIBaseInfo       *info,
                                  GIAttributeIter  *iterator,
-                                 const gchar     **name,
-                                 const gchar     **value)
+                                 const char      **name,
+                                 const char      **value)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   Header *header = (Header *)rinfo->typelib->data;

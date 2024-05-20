@@ -262,50 +262,63 @@ gi_arg_info_get_scope (GIArgInfo *info)
 /**
  * gi_arg_info_get_closure_index:
  * @info: a #GIArgInfo
+ * @out_closure_index: (out) (optional): return location for the closure index
  *
  * Obtain the index of the user data argument. This is only valid
  * for arguments which are callbacks.
  *
- * Returns: Index of the user data argument or `-1` if there is none
+ * Returns: `TRUE` if the argument has a user data argument
  * Since: 2.80
  */
-gint
-gi_arg_info_get_closure_index (GIArgInfo *info)
+gboolean
+gi_arg_info_get_closure_index (GIArgInfo    *info,
+                               unsigned int *out_closure_index)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   ArgBlob *blob;
+  gboolean has_closure_index;
 
-  g_return_val_if_fail (info != NULL, -1);
-  g_return_val_if_fail (GI_IS_ARG_INFO (info), -1);
+  g_return_val_if_fail (info != NULL, FALSE);
+  g_return_val_if_fail (GI_IS_ARG_INFO (info), FALSE);
 
   blob = (ArgBlob *)&rinfo->typelib->data[rinfo->offset];
 
-  return blob->closure;
+  has_closure_index = (blob->closure >= 0);
+
+  if (out_closure_index != NULL)
+    *out_closure_index = has_closure_index ? blob->closure : 0;
+  return has_closure_index;
 }
 
 /**
  * gi_arg_info_get_destroy_index:
  * @info: a #GIArgInfo
+ * @out_destroy_index: (out) (optional): return location for the destroy index
  *
  * Obtains the index of the [type@GLib.DestroyNotify] argument. This is only
  * valid for arguments which are callbacks.
  *
- * Returns: Index of the [type@GLib.DestroyNotify] argument or `-1` if there is
- *   none
+ * Returns: `TRUE` if the argument has a [type@GLib.DestroyNotify] argument
  * Since: 2.80
  */
-gint
-gi_arg_info_get_destroy_index (GIArgInfo *info)
+gboolean
+gi_arg_info_get_destroy_index (GIArgInfo    *info,
+                               unsigned int *out_destroy_index)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   ArgBlob *blob;
+  gboolean has_destroy_index;
 
-  g_return_val_if_fail (info != NULL, -1);
-  g_return_val_if_fail (GI_IS_ARG_INFO (info), -1);
+  g_return_val_if_fail (info != NULL, FALSE);
+  g_return_val_if_fail (GI_IS_ARG_INFO (info), FALSE);
 
   blob = (ArgBlob *)&rinfo->typelib->data[rinfo->offset];
 
-  return blob->destroy;
+  has_destroy_index = (blob->destroy >= 0);
+
+  if (out_destroy_index != NULL)
+    *out_destroy_index = has_destroy_index ? blob->destroy : 0;
+  return has_destroy_index;
 }
 
 /**
@@ -341,6 +354,9 @@ gi_arg_info_get_type_info (GIArgInfo *info)
  *
  * The initialized @type must not be referenced after @info is deallocated.
  *
+ * Once you are done with @type, it must be cleared using
+ * [method@GIRepository.BaseInfo.clear].
+ *
  * Since: 2.80
  */
 void
@@ -352,7 +368,7 @@ gi_arg_info_load_type (GIArgInfo  *info,
   g_return_if_fail (info != NULL);
   g_return_if_fail (GI_IS_ARG_INFO (info));
 
-  gi_type_info_init ((GIBaseInfo *) type, (GIBaseInfo*)info, rinfo->typelib, rinfo->offset + G_STRUCT_OFFSET (ArgBlob, arg_type));
+  gi_type_info_init (type, (GIBaseInfo*)info, rinfo->typelib, rinfo->offset + G_STRUCT_OFFSET (ArgBlob, arg_type));
 }
 
 void

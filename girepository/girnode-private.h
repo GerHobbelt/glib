@@ -70,322 +70,348 @@ typedef enum
   GI_IR_NODE_XREF         = 19
 } GIIrNodeTypeId;
 
+/**
+ * GIIrOffsetsState:
+ * @GI_IR_OFFSETS_UNKNOWN: offsets have not been calculated yet
+ * @GI_IR_OFFSETS_COMPUTED: offsets have been successfully calculated
+ * @GI_IR_OFFSETS_FAILED: calculating the offsets failed
+ * @GI_IR_OFFSETS_IN_PROGRESS: offsets are currently being calculated (used to
+ *   detect type recursion)
+ *
+ * State tracking for calculating size and alignment of
+ * [type@GIRepository.IrNode]s.
+ *
+ * Since: 2.80
+ */
+typedef enum
+{
+  GI_IR_OFFSETS_UNKNOWN,
+  GI_IR_OFFSETS_COMPUTED,
+  GI_IR_OFFSETS_FAILED,
+  GI_IR_OFFSETS_IN_PROGRESS,
+} GIIrOffsetsState;
+
 struct _GIIrNode
 {
   GIIrNodeTypeId type;
-  gchar *name;
-  GIIrModule *module;
+  char *name;  /* (owned) */
+  GIIrModule *module;  /* (unowned) */
 
-  guint32 offset; /* Assigned as we build the typelib */
+  uint32_t offset; /* Assigned as we build the typelib */
 
-  GHashTable *attributes;
+  GHashTable *attributes;  /* (element-type utf8 utf8) (owned) */
 };
 
 struct _GIIrNodeXRef
 {
   GIIrNode node;
 
-  gchar *namespace;
+  char *namespace;  /* (owned) */
 };
 
 struct _GIIrNodeFunction
 {
   GIIrNode node;
 
-  gboolean deprecated;
-  gboolean is_varargs; /* Not in typelib yet */
+  uint8_t deprecated : 1;
+  uint8_t is_varargs : 1; /* Not in typelib yet */
 
-  gboolean is_method;
-  gboolean is_setter;
-  gboolean is_getter;
-  gboolean is_constructor;
-  gboolean wraps_vfunc;
-  gboolean throws;
-  gboolean instance_transfer_full;
+  uint8_t is_method : 1;
+  uint8_t is_setter : 1;
+  uint8_t is_getter : 1;
+  uint8_t is_constructor : 1;
+  uint8_t wraps_vfunc : 1;
+  uint8_t throws : 1;
+  uint8_t instance_transfer_full : 1;
 
-  gchar *symbol;
-  char *property;
+  char *symbol;  /* (owned) */
+  char *property;  /* (owned) */
 
-  GIIrNodeParam *result;
-  GList *parameters;
+  GIIrNodeParam *result;  /* (owned) */
+  GList *parameters;  /* (element-type GIIrNode) (owned) */
 };
 
 struct _GIIrNodeType
 {
   GIIrNode node;
 
-  gboolean is_pointer;
-  gboolean is_basic;
-  gboolean is_array;
-  gboolean is_glist;
-  gboolean is_gslist;
-  gboolean is_ghashtable;
-  gboolean is_interface;
-  gboolean is_error;
-  gint tag;
+  uint8_t is_pointer : 1;
+  uint8_t is_basic : 1;
+  uint8_t is_array : 1;
+  uint8_t is_glist : 1;
+  uint8_t is_gslist : 1;
+  uint8_t is_ghashtable : 1;
+  uint8_t is_interface : 1;
+  uint8_t is_error : 1;
+  int tag;
 
-  gchar *unparsed;
+  char *unparsed; /* (owned) */
 
-  gboolean zero_terminated;
-  gboolean has_length;
-  gint length;
-  gboolean has_size;
-  gint size;
-  gint array_type;
+  uint8_t zero_terminated : 1;
+  uint8_t has_length : 1;
+  unsigned int length;
+  uint8_t has_size : 1;
+  size_t size;
+  GIArrayType array_type;
 
-  GIIrNodeType *parameter_type1;
-  GIIrNodeType *parameter_type2;
+  GIIrNodeType *parameter_type1;  /* (owned) */
+  GIIrNodeType *parameter_type2;  /* (owned) */
 
-  gchar *giinterface;
-  gchar **errors;
+  char *giinterface;  /* (owned) */
+  char **errors;  /* (array zero-terminated=1) (owned) */
 };
 
 struct _GIIrNodeParam
 {
   GIIrNode node;
 
-  gboolean in;
-  gboolean out;
-  gboolean caller_allocates;
-  gboolean optional;
-  gboolean retval;
-  gboolean nullable;
-  gboolean skip;
-  gboolean transfer;
-  gboolean shallow_transfer;
-  GIScopeType scope;
+  uint8_t in : 1;
+  uint8_t out : 1;
+  uint8_t caller_allocates : 1;
+  uint8_t optional : 1;
+  uint8_t retval : 1;
+  uint8_t nullable : 1;
+  uint8_t skip : 1;
+  uint8_t transfer : 1;
+  uint8_t shallow_transfer : 1;
+  GIScopeType scope : 3;
 
-  gint8 closure;
-  gint8 destroy;
+  int8_t closure;
+  int8_t destroy;
 
-  GIIrNodeType *type;
+  GIIrNodeType *type;  /* (owned) */
 };
 
 struct _GIIrNodeProperty
 {
   GIIrNode node;
 
-  gboolean deprecated;
+  uint8_t deprecated : 1;
 
-  gchar *name;
-  gboolean readable;
-  gboolean writable;
-  gboolean construct;
-  gboolean construct_only;
-  gboolean transfer;
-  gboolean shallow_transfer;
+  char *name;  /* (owned) */
+  uint8_t readable : 1;
+  uint8_t writable : 1;
+  uint8_t construct : 1;
+  uint8_t construct_only : 1;
+  uint8_t transfer : 1;
+  uint8_t shallow_transfer : 1;
 
-  char *setter;
-  char *getter;
+  char *setter;  /* (owned) */
+  char *getter;  /* (owned) */
 
-  GIIrNodeType *type;
+  GIIrNodeType *type;  /* (owned) */
 };
 
 struct _GIIrNodeSignal
 {
   GIIrNode node;
 
-  gboolean deprecated;
+  uint8_t deprecated : 1;
 
-  gboolean run_first;
-  gboolean run_last;
-  gboolean run_cleanup;
-  gboolean no_recurse;
-  gboolean detailed;
-  gboolean action;
-  gboolean no_hooks;
-  gboolean instance_transfer_full;
+  uint8_t run_first : 1;
+  uint8_t run_last : 1;
+  uint8_t run_cleanup : 1;
+  uint8_t no_recurse : 1;
+  uint8_t detailed : 1;
+  uint8_t action : 1;
+  uint8_t no_hooks : 1;
+  uint8_t instance_transfer_full : 1;
 
-  gboolean has_class_closure;
-  gboolean true_stops_emit;
+  uint8_t has_class_closure : 1;
+  uint8_t true_stops_emit : 1;
 
-  gint class_closure;
+  unsigned int class_closure;
 
-  GList *parameters;
-  GIIrNodeParam *result;
+  GList *parameters;  /* (element-type GIIrNode) (owned) */
+  GIIrNodeParam *result;  /* (owned) */
 };
 
 struct _GIIrNodeVFunc
 {
   GIIrNode node;
 
-  gboolean is_varargs; /* Not in typelib yet */
-  gboolean must_chain_up;
-  gboolean must_be_implemented;
-  gboolean must_not_be_implemented;
-  gboolean is_class_closure;
-  gboolean throws;
-  gboolean instance_transfer_full;
+  uint8_t is_varargs : 1; /* Not in typelib yet */
+  uint8_t must_chain_up : 1;
+  uint8_t must_be_implemented : 1;
+  uint8_t must_not_be_implemented : 1;
+  uint8_t is_class_closure : 1;
+  uint8_t throws : 1;
+  uint8_t instance_transfer_full : 1;
 
-  char *invoker;
+  char *invoker;  /* (owned) */
 
-  GList *parameters;
-  GIIrNodeParam *result;
+  GList *parameters;  /* (element-type GIIrNode) (owned) */
+  GIIrNodeParam *result;  /* (owned) */
 
-  gint offset;
+  size_t offset;
 };
 
 struct _GIIrNodeField
 {
   GIIrNode node;
 
-  gboolean readable;
-  gboolean writable;
-  gint bits;
-  gint offset;
-  GIIrNodeFunction *callback;
+  uint8_t readable : 1;
+  uint8_t writable : 1;
+  unsigned int bits;
+  size_t offset;
+  GIIrOffsetsState offset_state;
+  GIIrNodeFunction *callback;  /* (owned) */
 
-  GIIrNodeType *type;
+  GIIrNodeType *type;  /* (owned) */
 };
 
 struct _GIIrNodeInterface
 {
   GIIrNode node;
 
-  gboolean abstract;
-  gboolean deprecated;
-  gboolean fundamental;
-  gboolean final_;
+  uint8_t abstract : 1;
+  uint8_t deprecated : 1;
+  uint8_t fundamental : 1;
+  uint8_t final_ : 1;
 
-  gchar *gtype_name;
-  gchar *gtype_init;
+  char *gtype_name;  /* (owned) */
+  char *gtype_init;  /* (owned) */
 
-  gchar *ref_func;
-  gchar *unref_func;
-  gchar *set_value_func;
-  gchar *get_value_func;
+  char *ref_func;  /* (owned) */
+  char *unref_func;  /* (owned) */
+  char *set_value_func;  /* (owned) */
+  char *get_value_func;  /* (owned) */
 
-  gchar *parent;
-  gchar *glib_type_struct;
+  char *parent;  /* (owned) */
+  char *glib_type_struct;  /* (owned) */
 
-  GList *interfaces;
-  GList *prerequisites;
+  GList *interfaces;  /* (element-type GIIrNode) (owned) */
+  GList *prerequisites; /* (element-type utf8) (owned) */
 
-  gint alignment;
-  gint size;
+  size_t alignment;
+  size_t size;
+  GIIrOffsetsState offsets_state;
 
-  GList *members;
+  GList *members;  /* (element-type GIIrNode) (owned) */
 };
 
 struct _GIIrNodeValue
 {
   GIIrNode node;
 
-  gboolean deprecated;
+  uint8_t deprecated : 1;
 
-  gint64 value;
+  int64_t value;
 };
 
 struct _GIIrNodeConstant
 {
   GIIrNode node;
 
-  gboolean deprecated;
+  uint8_t deprecated : 1;
 
-  GIIrNodeType *type;
+  GIIrNodeType *type;  /* (owned) */
 
-  gchar *value;
+  char *value;  /* (owned) */
 };
 
 struct _GIIrNodeEnum
 {
   GIIrNode node;
 
-  gboolean deprecated;
-  gint storage_type;
+  uint8_t deprecated : 1;
+  GITypeTag storage_type;
 
-  gchar *gtype_name;
-  gchar *gtype_init;
-  gchar *error_domain;
+  char *gtype_name;  /* (owned) */
+  char *gtype_init;  /* (owned) */
+  char *error_domain;  /* (owned) */
 
-  GList *values;
-  GList *methods;
+  GList *values;  /* (element-type GIIrNode) (owned) */
+  GList *methods;  /* (element-type GIIrNode) (owned) */
 };
 
 struct _GIIrNodeBoxed
 {
   GIIrNode node;
 
-  gboolean deprecated;
+  uint8_t deprecated : 1;
 
-  gchar *gtype_name;
-  gchar *gtype_init;
+  char *gtype_name;  /* (owned) */
+  char *gtype_init;  /* (owned) */
 
-  gint alignment;
-  gint size;
+  size_t alignment;
+  size_t size;
+  GIIrOffsetsState offsets_state;
 
-  GList *members;
+  GList *members;  /* (element-type GIIrNode) (owned) */
 };
 
 struct _GIIrNodeStruct
 {
   GIIrNode node;
 
-  gboolean deprecated;
-  gboolean disguised;
-  gboolean opaque;
-  gboolean pointer;
-  gboolean is_gtype_struct;
-  gboolean foreign;
+  uint8_t deprecated : 1;
+  uint8_t disguised : 1;
+  uint8_t opaque : 1;
+  uint8_t pointer : 1;
+  uint8_t is_gtype_struct : 1;
+  uint8_t foreign : 1;
 
-  gchar *gtype_name;
-  gchar *gtype_init;
+  char *gtype_name;  /* (owned) */
+  char *gtype_init;  /* (owned) */
 
-  gchar *copy_func;
-  gchar *free_func;
+  char *copy_func;  /* (owned) */
+  char *free_func;  /* (owned) */
 
-  gint alignment;
-  gint size;
+  size_t alignment;
+  size_t size;
+  GIIrOffsetsState offsets_state;
 
-  GList *members;
+  GList *members;  /* (element-type GIIrNode) (owned) */
 };
 
 struct _GIIrNodeUnion
 {
   GIIrNode node;
 
-  gboolean deprecated;
+  uint8_t deprecated : 1;
 
-  GList *members;
-  GList *discriminators;
+  GList *members;  /* (element-type GIIrNode) (owned) */
+  GList *discriminators;  /* (element-type GIIrNode) (owned) */
 
-  gchar *gtype_name;
-  gchar *gtype_init;
+  char *gtype_name;  /* (owned) */
+  char *gtype_init;  /* (owned) */
 
-  gchar *copy_func;
-  gchar *free_func;
+  char *copy_func;  /* (owned) */
+  char *free_func;  /* (owned) */
 
-  gint alignment;
-  gint size;
+  size_t alignment;
+  size_t size;
+  GIIrOffsetsState offsets_state;
 
-  gint discriminator_offset;
-  GIIrNodeType *discriminator_type;
+  size_t discriminator_offset;
+  GIIrNodeType *discriminator_type;  /* (owned) */
 };
 
 
 GIIrNode *gi_ir_node_new             (GIIrNodeTypeId  type,
                                       GIIrModule     *module);
 void      gi_ir_node_free            (GIIrNode    *node);
-guint32   gi_ir_node_get_size        (GIIrNode    *node);
-guint32   gi_ir_node_get_full_size   (GIIrNode    *node);
+uint32_t  gi_ir_node_get_size        (GIIrNode    *node);
+uint32_t  gi_ir_node_get_full_size   (GIIrNode    *node);
 void      gi_ir_node_build_typelib   (GIIrNode         *node,
                                       GIIrNode         *parent,
                                       GIIrTypelibBuild *build,
-                                      guint32          *offset,
-                                      guint32          *offset2,
-                                      guint16          *count2);
+                                      uint32_t         *offset,
+                                      uint32_t         *offset2,
+                                      uint16_t         *count2);
 int       gi_ir_node_cmp             (GIIrNode *node,
                                       GIIrNode *other);
 gboolean  gi_ir_node_can_have_member (GIIrNode *node);
 void      gi_ir_node_add_member      (GIIrNode         *node,
                                       GIIrNodeFunction *member);
-guint32   gi_ir_write_string         (const gchar *str,
+uint32_t  gi_ir_write_string         (const char  *str,
                                       GHashTable  *strings,
-                                      guchar      *data,
-                                      guint32     *offset);
+                                      uint8_t     *data,
+                                      uint32_t    *offset);
 
-const gchar * gi_ir_node_param_direction_string (GIIrNodeParam * node);
-const gchar * gi_ir_node_type_to_string         (GIIrNodeTypeId type);
+const char * gi_ir_node_param_direction_string (GIIrNodeParam * node);
+const char * gi_ir_node_type_to_string         (GIIrNodeTypeId type);
 
 GIIrNode *gi_ir_find_node (GIIrTypelibBuild *build,
                            GIIrModule       *module,

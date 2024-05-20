@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.79.0',
+  version : '2.79.1',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 1.2.0',
   default_options : [
@@ -414,6 +414,7 @@ headers = [
   'sys/vfstab.h',
   'sys/vmount.h',
   'sys/wait.h',
+  'syslog.h',
   'termios.h',
   'unistd.h',
   'values.h',
@@ -2531,9 +2532,6 @@ subdir('gobject')
 subdir('gthread')
 subdir('gmodule')
 subdir('gio')
-if enable_gir
-  subdir('introspection')
-endif
 subdir('girepository')
 subdir('fuzzing')
 

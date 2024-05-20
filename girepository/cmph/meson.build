@@ -51,6 +51,7 @@ cmph = static_library('cmph',
   sources: cmph_sources,
   c_args: custom_c_args,
   dependencies: cmph_deps,
+  gnu_symbol_visibility : 'hidden',
 )
 
 cmph_dep = declare_dependency(
@@ -64,23 +65,3 @@ if cc.get_id() != 'msvc'
     '-Wno-type-limits',
   ])
 endif
-
-test_env = environment()
-test_env.set('G_TEST_SRCDIR', meson.current_source_dir())
-test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
-
-cmph_test = executable('cmph-bdz-test', '../cmph-bdz-test.c',
-  dependencies: [
-    cmph_dep,
-    libglib_dep,
-    libgobject_dep,
-  ],
-  c_args: custom_c_args + ['-UG_DISABLE_ASSERT'],
-)
-
-test('cmph-bdz-test', cmph_test,
-  env: test_env,
-  protocol: test_protocol,
-  suite: ['girepository'],
-  timeout: test_timeout,
-)
