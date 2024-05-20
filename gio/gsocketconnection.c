@@ -177,6 +177,10 @@ static gboolean g_socket_connection_connect_callback (GSocket      *socket,
  * This clears the #GSocket:blocking flag on @connection's underlying
  * socket if it is currently set.
  *
+ * If #GSocket:timeout is set, the operation will time out and return
+ * %G_IO_ERROR_TIMED_OUT after that period. Otherwise, it will continue
+ * indefinitely until operating system timeouts (if any) are hit.
+ *
  * Use g_socket_connection_connect_finish() to retrieve the result.
  *
  * Since: 2.32
@@ -445,11 +449,16 @@ g_socket_connection_class_init (GSocketConnectionClass *klass)
   stream_class->close_async = g_socket_connection_close_async;
   stream_class->close_finish = g_socket_connection_close_finish;
 
+  /**
+   * GSocketConnection:socket:
+   *
+   * The underlying [class@Gio.Socket].
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class,
                                    PROP_SOCKET,
-                                   g_param_spec_object ("socket",
-			                                P_("Socket"),
-			                                P_("The underlying GSocket"),
+                                   g_param_spec_object ("socket", NULL, NULL,
                                                         G_TYPE_SOCKET,
                                                         G_PARAM_CONSTRUCT_ONLY |
                                                         G_PARAM_READWRITE |

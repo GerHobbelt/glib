@@ -138,6 +138,24 @@
  * a `GSocket` concurrently from multiple threads, you must implement your own
  * locking.
  *
+ * ## Nagle’s algorithm
+ *
+ * Since GLib 2.80, `GSocket` will automatically set the `TCP_NODELAY` option on
+ * all `G_SOCKET_TYPE_STREAM` sockets. This disables
+ * [Nagle’s algorithm](https://en.wikipedia.org/wiki/Nagle%27s_algorithm) as it
+ * typically does more harm than good on modern networks.
+ *
+ * If your application needs Nagle’s algorithm enabled, call
+ * [method@Gio.Socket.set_option] after constructing a `GSocket` to enable it:
+ * ```c
+ * socket = g_socket_new (…, G_SOCKET_TYPE_STREAM, …);
+ * if (socket != NULL)
+ *   {
+ *     g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY, FALSE, &local_error);
+ *     // handle error if needed
+ *   }
+ * ```
+ *
  * Since: 2.22
  */
 
@@ -749,6 +767,8 @@ g_socket_constructed (GObject *object)
       /* See note about SIGPIPE below. */
       g_socket_set_option (socket, SOL_SOCKET, SO_NOSIGPIPE, TRUE, NULL);
 #endif
+      if (socket->priv->type == G_SOCKET_TYPE_STREAM)
+        g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY, TRUE, NULL);
     }
 }
 
@@ -952,40 +972,60 @@ g_socket_class_init (GSocketClass *klass)
   gobject_class->set_property = g_socket_set_property;
   gobject_class->get_property = g_socket_get_property;
 
+  /**
+   * GSocket:family:
+   *
+   * The socket’s address family.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_FAMILY,
-				   g_param_spec_enum ("family",
-						      P_("Socket family"),
-						      P_("The sockets address family"),
+				   g_param_spec_enum ("family", NULL, NULL,
 						      G_TYPE_SOCKET_FAMILY,
 						      G_SOCKET_FAMILY_INVALID,
 						      G_PARAM_CONSTRUCT_ONLY |
                                                       G_PARAM_READWRITE |
                                                       G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:type:
+   *
+   * The socket’s type.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_TYPE,
-				   g_param_spec_enum ("type",
-						      P_("Socket type"),
-						      P_("The sockets type"),
+				   g_param_spec_enum ("type", NULL, NULL,
 						      G_TYPE_SOCKET_TYPE,
 						      G_SOCKET_TYPE_STREAM,
 						      G_PARAM_CONSTRUCT_ONLY |
                                                       G_PARAM_READWRITE |
                                                       G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:protocol:
+   *
+   * The ID of the protocol to use, or `-1` for unknown.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_PROTOCOL,
-				   g_param_spec_enum ("protocol",
-						      P_("Socket protocol"),
-						      P_("The id of the protocol to use, or -1 for unknown"),
+				   g_param_spec_enum ("protocol", NULL, NULL,
 						      G_TYPE_SOCKET_PROTOCOL,
 						      G_SOCKET_PROTOCOL_UNKNOWN,
 						      G_PARAM_CONSTRUCT_ONLY |
                                                       G_PARAM_READWRITE |
                                                       G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:fd:
+   *
+   * The socket’s file descriptor.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_FD,
-				   g_param_spec_int ("fd",
-						     P_("File descriptor"),
-						     P_("The sockets file descriptor"),
+				   g_param_spec_int ("fd", NULL, NULL,
 						     G_MININT,
 						     G_MAXINT,
 						     -1,
@@ -993,44 +1033,69 @@ g_socket_class_init (GSocketClass *klass)
                                                      G_PARAM_READWRITE |
                                                      G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:blocking:
+   *
+   * Whether I/O on this socket is blocking.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_BLOCKING,
-				   g_param_spec_boolean ("blocking",
-							 P_("blocking"),
-							 P_("Whether or not I/O on this socket is blocking"),
+				   g_param_spec_boolean ("blocking", NULL, NULL,
 							 TRUE,
 							 G_PARAM_READWRITE |
                                                          G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:listen-backlog:
+   *
+   * The number of outstanding connections in the listen queue.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_LISTEN_BACKLOG,
-				   g_param_spec_int ("listen-backlog",
-						     P_("Listen backlog"),
-						     P_("Outstanding connections in the listen queue"),
+				   g_param_spec_int ("listen-backlog", NULL, NULL,
 						     0,
 						     SOMAXCONN,
 						     10,
 						     G_PARAM_READWRITE |
                                                      G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:keepalive:
+   *
+   * Whether to keep the connection alive by sending periodic pings.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_KEEPALIVE,
-				   g_param_spec_boolean ("keepalive",
-							 P_("Keep connection alive"),
-							 P_("Keep connection alive by sending periodic pings"),
+				   g_param_spec_boolean ("keepalive", NULL, NULL,
 							 FALSE,
 							 G_PARAM_READWRITE |
                                                          G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:local-address:
+   *
+   * The local address the socket is bound to.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_LOCAL_ADDRESS,
-				   g_param_spec_object ("local-address",
-							P_("Local address"),
-							P_("The local address the socket is bound to"),
+				   g_param_spec_object ("local-address", NULL, NULL,
 							G_TYPE_SOCKET_ADDRESS,
 							G_PARAM_READABLE |
                                                         G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GSocket:remote-address:
+   *
+   * The remote address the socket is connected to.
+   *
+   * Since: 2.22
+   */
   g_object_class_install_property (gobject_class, PROP_REMOTE_ADDRESS,
-				   g_param_spec_object ("remote-address",
-							P_("Remote address"),
-							P_("The remote address the socket is connected to"),
+				   g_param_spec_object ("remote-address", NULL, NULL,
 							G_TYPE_SOCKET_ADDRESS,
 							G_PARAM_READABLE |
                                                         G_PARAM_STATIC_STRINGS));
@@ -1043,9 +1108,7 @@ g_socket_class_init (GSocketClass *klass)
    * Since: 2.26
    */
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
-				   g_param_spec_uint ("timeout",
-						      P_("Timeout"),
-						      P_("The timeout in seconds on socket I/O"),
+				   g_param_spec_uint ("timeout", NULL, NULL,
 						      0,
 						      G_MAXUINT,
 						      0,
@@ -1060,9 +1123,7 @@ g_socket_class_init (GSocketClass *klass)
    * Since: 2.32
    */
   g_object_class_install_property (gobject_class, PROP_BROADCAST,
-				   g_param_spec_boolean ("broadcast",
-							 P_("Broadcast"),
-							 P_("Whether to allow sending to broadcast addresses"),
+				   g_param_spec_boolean ("broadcast", NULL, NULL,
 							 FALSE,
 							 G_PARAM_READWRITE |
                                                          G_PARAM_STATIC_STRINGS));
@@ -1075,9 +1136,7 @@ g_socket_class_init (GSocketClass *klass)
    * Since: 2.32
    */
   g_object_class_install_property (gobject_class, PROP_TTL,
-				   g_param_spec_uint ("ttl",
-						      P_("TTL"),
-						      P_("Time-to-live of outgoing unicast packets"),
+				   g_param_spec_uint ("ttl", NULL, NULL,
 						      0, G_MAXUINT, 0,
 						      G_PARAM_READWRITE |
 						      G_PARAM_STATIC_STRINGS));
@@ -1090,9 +1149,7 @@ g_socket_class_init (GSocketClass *klass)
    * Since: 2.32
    */
   g_object_class_install_property (gobject_class, PROP_MULTICAST_LOOPBACK,
-				   g_param_spec_boolean ("multicast-loopback",
-							 P_("Multicast loopback"),
-							 P_("Whether outgoing multicast packets loop back to the local host"),
+				   g_param_spec_boolean ("multicast-loopback", NULL, NULL,
 							 TRUE,
 							 G_PARAM_READWRITE |
                                                          G_PARAM_STATIC_STRINGS));
@@ -1105,9 +1162,7 @@ g_socket_class_init (GSocketClass *klass)
    * Since: 2.32
    */
   g_object_class_install_property (gobject_class, PROP_MULTICAST_TTL,
-				   g_param_spec_uint ("multicast-ttl",
-						      P_("Multicast TTL"),
-						      P_("Time-to-live of outgoing multicast packets"),
+				   g_param_spec_uint ("multicast-ttl", NULL, NULL,
 						      0, G_MAXUINT, 1,
 						      G_PARAM_READWRITE |
 						      G_PARAM_STATIC_STRINGS));

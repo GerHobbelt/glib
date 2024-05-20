@@ -47,7 +47,7 @@
  *
  * The socket service runs on the main loop of the 
  * thread-default context (see
- * [method@GLib.MainContext.push_thread_default_context]) of the thread it is
+ * [method@GLib.MainContext.push_thread_default]) of the thread it is
  * created in, and is not threadsafe in general. However, the calls to start and
  * stop the service are thread-safe so these can be used from threads that
  * handle incoming clients.
@@ -360,9 +360,7 @@ g_socket_service_class_init (GSocketServiceClass *class)
    * Since: 2.46
    */
   g_object_class_install_property (gobject_class, PROP_ACTIVE,
-                                   g_param_spec_boolean ("active",
-                                                         P_("Active"),
-                                                         P_("Whether the service is currently accepting connections"),
+                                   g_param_spec_boolean ("active", NULL, NULL,
                                                          TRUE,
                                                          G_PARAM_CONSTRUCT | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }

@@ -815,9 +815,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_STREAM,
-                                   g_param_spec_object ("stream",
-                                                        P_("IO Stream"),
-                                                        P_("The underlying streams used for I/O"),
+                                   g_param_spec_object ("stream", NULL, NULL,
                                                         G_TYPE_IO_STREAM,
                                                         G_PARAM_READABLE |
                                                         G_PARAM_WRITABLE |
@@ -836,9 +834,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_ADDRESS,
-                                   g_param_spec_string ("address",
-                                                        P_("Address"),
-                                                        P_("D-Bus address specifying potential socket endpoints"),
+                                   g_param_spec_string ("address", NULL, NULL,
                                                         NULL,
                                                         G_PARAM_WRITABLE |
                                                         G_PARAM_CONSTRUCT_ONLY |
@@ -855,9 +851,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_FLAGS,
-                                   g_param_spec_flags ("flags",
-                                                       P_("Flags"),
-                                                       P_("Flags"),
+                                   g_param_spec_flags ("flags", NULL, NULL,
                                                        G_TYPE_DBUS_CONNECTION_FLAGS,
                                                        G_DBUS_CONNECTION_FLAGS_NONE,
                                                        G_PARAM_READABLE |
@@ -897,9 +891,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_GUID,
-                                   g_param_spec_string ("guid",
-                                                        P_("GUID"),
-                                                        P_("GUID of the server peer"),
+                                   g_param_spec_string ("guid", NULL, NULL,
                                                         NULL,
                                                         G_PARAM_READABLE |
                                                         G_PARAM_WRITABLE |
@@ -918,9 +910,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_UNIQUE_NAME,
-                                   g_param_spec_string ("unique-name",
-                                                        P_("unique-name"),
-                                                        P_("Unique name of bus connection"),
+                                   g_param_spec_string ("unique-name", NULL, NULL,
                                                         NULL,
                                                         G_PARAM_READABLE |
                                                         G_PARAM_STATIC_NAME |
@@ -936,9 +926,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_CLOSED,
-                                   g_param_spec_boolean ("closed",
-                                                         P_("Closed"),
-                                                         P_("Whether the connection is closed"),
+                                   g_param_spec_boolean ("closed", NULL, NULL,
                                                          FALSE,
                                                          G_PARAM_READABLE |
                                                          G_PARAM_STATIC_NAME |
@@ -959,9 +947,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_EXIT_ON_CLOSE,
-                                   g_param_spec_boolean ("exit-on-close",
-                                                         P_("Exit on close"),
-                                                         P_("Whether the process is terminated when the connection is closed"),
+                                   g_param_spec_boolean ("exit-on-close", NULL, NULL,
                                                          FALSE,
                                                          G_PARAM_READABLE |
                                                          G_PARAM_WRITABLE |
@@ -979,9 +965,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_CAPABILITY_FLAGS,
-                                   g_param_spec_flags ("capabilities",
-                                                       P_("Capabilities"),
-                                                       P_("Capabilities"),
+                                   g_param_spec_flags ("capabilities", NULL, NULL,
                                                        G_TYPE_DBUS_CAPABILITY_FLAGS,
                                                        G_DBUS_CAPABILITY_FLAGS_NONE,
                                                        G_PARAM_READABLE |
@@ -998,9 +982,7 @@ g_dbus_connection_class_init (GDBusConnectionClass *klass)
    */
   g_object_class_install_property (gobject_class,
                                    PROP_AUTHENTICATION_OBSERVER,
-                                   g_param_spec_object ("authentication-observer",
-                                                        P_("Authentication Observer"),
-                                                        P_("Object used to assist in the authentication process"),
+                                   g_param_spec_object ("authentication-observer", NULL, NULL,
                                                         G_TYPE_DBUS_AUTH_OBSERVER,
                                                         G_PARAM_WRITABLE |
                                                         G_PARAM_CONSTRUCT_ONLY |
@@ -2660,7 +2642,26 @@ initable_init (GInitable     *initable,
       g_propagate_error (error, g_error_copy (connection->initialization_error));
     }
 
-  g_atomic_int_or (&connection->atomic_flags, FLAG_INITIALIZED);
+  /* Don't cache canceled errors. Otherwise other concurrent users of the same connection
+   * object will be canceled as well. */
+  if (g_error_matches (connection->initialization_error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+    {
+      if (connection->worker != NULL)
+        {
+          _g_dbus_worker_stop (connection->worker);
+          connection->worker = NULL;
+          if (alive_connections != NULL)
+            g_warn_if_fail (g_hash_table_remove (alive_connections, connection));
+        }
+      g_clear_error (&connection->initialization_error);
+      g_clear_object (&connection->stream);
+      g_clear_object (&connection->auth);
+      g_clear_object (&connection->credentials);
+      g_clear_pointer (&connection->guid, g_free);
+      connection->capabilities = 0;
+    }
+  else
+    g_atomic_int_or (&connection->atomic_flags, FLAG_INITIALIZED);
   g_mutex_unlock (&connection->init_lock);
 
   return ret;
@@ -3867,16 +3868,22 @@ schedule_callbacks (GDBusConnection *connection,
   const gchar *member;
   const gchar *path;
   const gchar *arg0;
+  const gchar *arg0_path;
 
   interface = NULL;
   member = NULL;
   path = NULL;
   arg0 = NULL;
+  arg0_path = NULL;
 
   interface = g_dbus_message_get_interface (message);
   member = g_dbus_message_get_member (message);
   path = g_dbus_message_get_path (message);
   arg0 = g_dbus_message_get_arg0 (message);
+  arg0_path = g_dbus_message_get_arg0_path (message);
+
+  /* These two are mutually exclusive through the type system. */
+  g_assert (arg0 == NULL || arg0_path == NULL);
 
 #if 0
   g_print ("In schedule_callbacks:\n"
@@ -3910,17 +3917,15 @@ schedule_callbacks (GDBusConnection *connection,
 
       if (signal_data->arg0 != NULL)
         {
-          if (arg0 == NULL)
-            continue;
-
           if (signal_data->flags & G_DBUS_SIGNAL_FLAGS_MATCH_ARG0_NAMESPACE)
             {
-              if (!namespace_rule_matches (signal_data->arg0, arg0))
+              if (arg0 == NULL || !namespace_rule_matches (signal_data->arg0, arg0))
                 continue;
             }
           else if (signal_data->flags & G_DBUS_SIGNAL_FLAGS_MATCH_ARG0_PATH)
             {
-              if (!path_rule_matches (signal_data->arg0, arg0))
+              if ((arg0 == NULL || !path_rule_matches (signal_data->arg0, arg0)) &&
+                  (arg0_path == NULL || !path_rule_matches (signal_data->arg0, arg0_path)))
                 continue;
             }
           else if (!g_str_equal (signal_data->arg0, arg0))

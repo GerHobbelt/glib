@@ -28,6 +28,8 @@
 #error "Only <girepository.h> can be included directly."
 #endif
 
+#include <glib.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GIBaseInfoStub {
@@ -143,11 +145,7 @@ typedef GIBaseInfo GIValueInfo;
  */
 typedef GIBaseInfo GISignalInfo;
 
-/**
- * GIVFuncInfo:
- *
- * Represents a virtual function.
- */
+/* Documented in givfuncinfo.c */
 typedef GIBaseInfo GIVFuncInfo;
 
 /**

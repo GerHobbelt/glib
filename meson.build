@@ -646,6 +646,7 @@ functions = [
   'free_aligned_sized',
   'free_sized',
   'fsync',
+  'ftruncate64',
   'getauxval',
   'getc_unlocked',
   'getfsstat',
@@ -1298,6 +1299,7 @@ if cc.links('''#include <langinfo.h>
 endif
 
 # Check for nl_langinfo and LC_TIME parts that are needed in gdatetime.c
+have_langinfo_time = false
 if cc.links('''#include <langinfo.h>
                int main (int argc, char ** argv) {
                  char *str;
@@ -1312,8 +1314,27 @@ if cc.links('''#include <langinfo.h>
                  str = nl_langinfo (ABDAY_7);
                  return 0;
                }''', name : 'nl_langinfo (PM_STR)')
+  have_langinfo_time = true
   glib_conf.set('HAVE_LANGINFO_TIME', 1)
 endif
+
+# Linux glibc supports ERA, but FreeBSD and macOS don’t
+if cc.links('''#include <langinfo.h>
+               int main (int argc, char **argv) {
+                 char *str;
+                 str = nl_langinfo (ERA);
+                 str = nl_langinfo (ERA_D_T_FMT);
+                 str = nl_langinfo (ERA_D_FMT);
+                 str = nl_langinfo (ERA_T_FMT);
+                 str = nl_langinfo (_NL_TIME_ERA_NUM_ENTRIES);
+                 return 0;
+               }''', name : 'nl_langinfo (ERA)')
+  glib_conf.set('HAVE_LANGINFO_ERA', 1)
+  if not have_langinfo_time
+    error('nl_langinfo(ERA) is supported but more basic nl_langinfo() functionality like PM_STR is not')
+  endif
+endif
+
 if cc.links('''#include <langinfo.h>
                int main (int argc, char ** argv) {
                  char *str;
@@ -1330,6 +1351,9 @@ if cc.links('''#include <langinfo.h>
                  return 0;
                }''', name : 'nl_langinfo (_NL_CTYPE_OUTDIGITn_MB)')
   glib_conf.set('HAVE_LANGINFO_OUTDIGIT', 1)
+  if not have_langinfo_time
+    error('nl_langinfo(_NL_CTYPE_OUTDIGITn_MB) is supported but more basic nl_langinfo() functionality like PM_STR is not')
+  endif
 endif
 
 # Check for nl_langinfo and alternative month names
@@ -1354,6 +1378,9 @@ if cc.links('''#ifndef _GNU_SOURCE
                  return 0;
                }''', name : 'nl_langinfo (ALTMON_n)')
   glib_conf.set('HAVE_LANGINFO_ALTMON', 1)
+  if not have_langinfo_time
+    error('nl_langinfo(ALTMON_n) is supported but more basic nl_langinfo() functionality like PM_STR is not')
+  endif
 endif
 
 # Check for nl_langinfo and abbreviated alternative month names
@@ -1378,6 +1405,9 @@ if cc.links('''#ifndef _GNU_SOURCE
                  return 0;
                }''', name : 'nl_langinfo (_NL_ABALTMON_n)')
   glib_conf.set('HAVE_LANGINFO_ABALTMON', 1)
+  if not have_langinfo_time
+    error('nl_langinfo(_NL_ABALTMON_n) is supported but more basic nl_langinfo() functionality like PM_STR is not')
+  endif
 endif
 
 # Check for nl_langinfo and _NL_TIME_CODESET
@@ -1387,6 +1417,9 @@ if cc.links('''#include <langinfo.h>
                  return 0;
                }''', name : 'nl_langinfo and _NL_TIME_CODESET')
   glib_conf.set('HAVE_LANGINFO_TIME_CODESET', 1)
+  if not have_langinfo_time
+    error('nl_langinfo(_NL_TIME_CODESET) is supported but more basic nl_langinfo() functionality like PM_STR is not')
+  endif
 endif
 
 # Check if C compiler supports the 'signed' keyword
@@ -2343,12 +2376,12 @@ endif
 
 glib_conf.set('HAVE_PROC_SELF_CMDLINE', have_proc_self_cmdline)
 
-python = import('python').find_installation()
+python = import('python').find_installation(modules: ['packaging'])
 # used for '#!/usr/bin/env <name>'
 python_name = 'python3'
 
 python_version = python.language_version()
-python_version_req = '>=3.5'
+python_version_req = '>=3.7'
 if not python_version.version_compare(python_version_req)
   error('Requires Python @0@, @1@ found.'.format(python_version_req, python_version))
 endif
@@ -2605,7 +2638,7 @@ summary({
   'dtrace' : get_option('dtrace'),
   'systemtap' : enable_systemtap,
   'sysprof' : libsysprof_capture_dep.found(),
-  'gtk_doc' : get_option('gtk_doc'),
+  'documentation' : get_option('documentation'),
   'bsymbolic_functions' : get_option('bsymbolic_functions'),
   'force_posix_threads' : get_option('force_posix_threads'),
   'tests' : get_option('tests'),

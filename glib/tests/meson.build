@@ -40,6 +40,7 @@ glib_tests = {
   'error' : {},
   'fileutils' : {},
   'gdatetime' : {
+    'source' : ['gdatetime.c', '../gdatetime-private.c'],
     'suite' : ['slow'],
     # musl: GDateTime/format_mixed/non_utf8_time_non_utf8_messages should be
     # skipped but it's not. The fix should be on musl side:
@@ -112,8 +113,6 @@ glib_tests = {
   'regex' : {
     'dependencies' : [pcre2],
     'c_args' : use_pcre2_static_flag ? ['-DPCRE2_STATIC'] : [],
-    # FIXME: musl: https://gitlab.gnome.org/GNOME/glib/-/issues/3159
-    'can_fail' : linux_libc == 'musl',
   },
   'relation' : {},
   'rwlock' : {},

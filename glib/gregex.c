@@ -45,7 +45,8 @@
  * A `GRegex` is the "compiled" form of a regular expression pattern.
  *
  * `GRegex` implements regular expression pattern matching using syntax and
- * semantics similar to Perl regular expression.
+ * semantics similar to Perl regular expression. See the
+ * [PCRE documentation](man:pcrepattern(3)) for the syntax definition.
  *
  * Some functions accept a @start_position argument, setting it differs
  * from just passing over a shortened string and setting %G_REGEX_MATCH_NOTBOL
@@ -3375,7 +3376,7 @@ g_regex_replace_literal (const GRegex      *regex,
  * @string_len: the length of @string, in bytes, or -1 if @string is nul-terminated
  * @start_position: starting index of the string to match, in bytes
  * @match_options: options for the match
- * @eval: a function to call for each match
+ * @eval: (scope call): a function to call for each match
  * @user_data: user data to pass to the function
  * @error: location to store the error occurring, or %NULL to ignore errors
  *

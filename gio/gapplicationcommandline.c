@@ -61,10 +61,11 @@
  * for an example.
  *
  * The exit status of the originally-invoked process may be set and
- * messages can be printed to stdout or stderr of that process. The
- * life-cycle of the originally-invoked process is tied to the lifecycle
- * of this object (ie: the process exits when the last reference is
- * dropped).
+ * messages can be printed to stdout or stderr of that process.
+ *
+ * For remote invocation, the originally-invoked process exits when
+ * [method@Gio.ApplicationCommandLine.done] method is called. This method is
+ * also automatically called when the object is disposed.
  *
  * The main use for `GApplicationCommandLine` (and the
  * [signal@Gio.Application::command-line] signal) is 'Emacs server' like use cases:
@@ -238,6 +239,7 @@ struct _GApplicationCommandLinePrivate
 
   gchar **environ;
   gint exit_status;
+  gboolean done;
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (GApplicationCommandLine, g_application_command_line, G_TYPE_OBJECT)
@@ -301,6 +303,11 @@ g_application_command_line_real_get_stdin (GApplicationCommandLine *cmdline)
 }
 
 static void
+g_application_command_line_real_done (GApplicationCommandLine *cmdline)
+{
+}
+
+static void
 g_application_command_line_get_property (GObject    *object,
                                          guint       prop_id,
                                          GValue     *value,
@@ -360,6 +367,16 @@ g_application_command_line_set_property (GObject      *object,
 }
 
 static void
+g_application_command_line_dispose (GObject *object)
+{
+  GApplicationCommandLine *cmdline = G_APPLICATION_COMMAND_LINE (object);
+
+  g_application_command_line_done (cmdline);
+
+  G_OBJECT_CLASS (g_application_command_line_parent_class)->dispose (object);
+}
+
+static void
 g_application_command_line_finalize (GObject *object)
 {
   GApplicationCommandLine *cmdline = G_APPLICATION_COMMAND_LINE (object);
@@ -412,39 +429,63 @@ g_application_command_line_class_init (GApplicationCommandLineClass *class)
   object_class->get_property = g_application_command_line_get_property;
   object_class->set_property = g_application_command_line_set_property;
   object_class->finalize = g_application_command_line_finalize;
+  object_class->dispose = g_application_command_line_dispose;
   object_class->constructed = g_application_command_line_constructed;
 
   class->printerr_literal = g_application_command_line_real_printerr_literal;
   class->print_literal = g_application_command_line_real_print_literal;
   class->get_stdin = g_application_command_line_real_get_stdin;
 
+  class->done = g_application_command_line_real_done;
+
+  /**
+   * GApplicationCommandLine:arguments:
+   *
+   * The commandline that caused this [signal@Gio.Application::command-line]
+   * signal emission.
+   *
+   * Since: 2.28
+   */
   g_object_class_install_property (object_class, PROP_ARGUMENTS,
-    g_param_spec_variant ("arguments",
-                          P_("Commandline arguments"),
-                          P_("The commandline that caused this ::command-line signal emission"),
+    g_param_spec_variant ("arguments", NULL, NULL,
                           G_VARIANT_TYPE_BYTESTRING_ARRAY, NULL,
                           G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY |
                           G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GApplicationCommandLine:options:
+   *
+   * The options sent along with the commandline.
+   *
+   * Since: 2.28
+   */
   g_object_class_install_property (object_class, PROP_OPTIONS,
-    g_param_spec_variant ("options",
-                          P_("Options"),
-                          P_("The options sent along with the commandline"),
+    g_param_spec_variant ("options", NULL, NULL,
                           G_VARIANT_TYPE_VARDICT, NULL, G_PARAM_WRITABLE |
                           G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GApplicationCommandLine:platform-data:
+   *
+   * Platform-specific data for the commandline.
+   *
+   * Since: 2.28
+   */
   g_object_class_install_property (object_class, PROP_PLATFORM_DATA,
-    g_param_spec_variant ("platform-data",
-                          P_("Platform data"),
-                          P_("Platform-specific data for the commandline"),
+    g_param_spec_variant ("platform-data", NULL, NULL,
                           G_VARIANT_TYPE ("a{sv}"), NULL,
                           G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY |
                           G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GApplicationCommandLine:is-remote:
+   *
+   * Whether this is a remote commandline.
+   *
+   * Since: 2.28
+   */
   g_object_class_install_property (object_class, PROP_IS_REMOTE,
-    g_param_spec_boolean ("is-remote",
-                          P_("Is remote"),
-                          P_("TRUE if this is a remote commandline"),
+    g_param_spec_boolean ("is-remote", NULL, NULL,
                           FALSE,
                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 }
@@ -799,6 +840,9 @@ g_application_command_line_printerr (GApplicationCommandLine *cmdline,
  * always zero.  If the application use count is zero, though, the exit
  * status of the local #GApplicationCommandLine is used.
  *
+ * This method is a no-op if g_application_command_line_done() has
+ * been called.
+ *
  * Since: 2.28
  **/
 void
@@ -806,6 +850,9 @@ g_application_command_line_set_exit_status (GApplicationCommandLine *cmdline,
                                             int                      exit_status)
 {
   g_return_if_fail (G_IS_APPLICATION_COMMAND_LINE (cmdline));
+
+  if (cmdline->priv->done)
+    return;
 
   cmdline->priv->exit_status = exit_status;
 }
@@ -889,4 +936,39 @@ g_application_command_line_create_file_for_arg (GApplicationCommandLine *cmdline
              "Using cwd of local process to resolve relative path names.");
 
   return g_file_new_for_commandline_arg (arg);
+}
+
+/**
+ * g_application_command_line_done:
+ * @cmdline: a #GApplicationCommandLine
+ *
+ * Signals that command line processing is completed.
+ *
+ * For remote invocation, it causes the invoking process to terminate.
+ *
+ * For local invocation, it does nothing.
+ *
+ * This method should be called in the [signal@Gio.Application::command-line]
+ * handler, after the exit status is set and all messages are printed.
+ *
+ * After this call, g_application_command_line_set_exit_status() has no effect.
+ * Subsequent calls to this method are no-ops.
+ *
+ * This method is automatically called when the #GApplicationCommandLine
+ * object is disposed — so you can omit the call in non-garbage collected
+ * languages.
+ *
+ * Since: 2.80
+ **/
+void
+g_application_command_line_done (GApplicationCommandLine *cmdline)
+{
+  g_return_if_fail (G_IS_APPLICATION_COMMAND_LINE (cmdline));
+
+  if (cmdline->priv->done)
+    return;
+
+  G_APPLICATION_COMMAND_LINE_GET_CLASS (cmdline)->done (cmdline);
+
+  cmdline->priv->done = TRUE;
 }

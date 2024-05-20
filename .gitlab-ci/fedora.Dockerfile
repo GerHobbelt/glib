@@ -32,6 +32,7 @@ RUN dnf -y update \
     glibc-langpack-lt \
     glibc-langpack-pl \
     glibc-langpack-ru \
+    glibc-langpack-th \
     glibc-langpack-tr \
     "gnome-desktop-testing >= 2018.1" \
     gtk-doc \
@@ -46,6 +47,7 @@ RUN dnf -y update \
     ninja-build \
     pcre2-devel \
     "python3-dbusmock >= 0.18.3-2" \
+    python3-packaging \
     python3-pip \
     python3-pygments \
     python3-wheel \
