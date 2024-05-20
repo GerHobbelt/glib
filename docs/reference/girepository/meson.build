@@ -1,3 +1,26 @@
+if get_option('man-pages').enabled()
+  manpages = [
+    'gi-compile-repository',
+    'gi-decompile-typelib',
+    'gi-inspect-typelib',
+  ]
+  foreach page : manpages
+    custom_target(page + '-man',
+      input: page + '.rst',
+      output: page + '.1',
+      command: [
+        rst2man,
+        rst2man_flags,
+        '@INPUT@',
+      ],
+      capture: true,
+      install: true,
+      install_dir: man1_dir,
+      install_tag: 'doc',
+    )
+  endforeach
+endif
+
 if get_option('documentation') and enable_gir
   expand_content_files = [
     'migrating-gi.md',
@@ -11,7 +34,7 @@ if get_option('documentation') and enable_gir
 
   custom_target('girepository-docs',
     input: [ girepository_toml, girepository_gir[0] ],
-    output: 'girepository',
+    output: 'girepository-2.0',
     command: [
       gidocgen,
       'generate',
