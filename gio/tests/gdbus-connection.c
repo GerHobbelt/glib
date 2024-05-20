@@ -536,7 +536,12 @@ test_connection_signal_handler (GDBusConnection  *connection,
            interface_name,
            signal_name);*/
 
-  g_main_loop_quit (loop);
+  /* We defer quitting to a G_PRIORITY_DEFAULT_IDLE function so other queued signal
+   * callbacks have a chance to run first. They get dispatched with a higher priority
+   * of G_PIORITY_DEFAULT, so as long as the queue is non-empty g_main_loop_quit won't
+   * run
+   */
+  g_idle_add_once ((GSourceOnceFunc) g_main_loop_quit, loop);
 }
 
 static void
@@ -549,9 +554,13 @@ test_connection_signals (void)
   guint s1b;
   guint s2;
   guint s3;
+  guint s4;
+  guint s5;
   gint count_s1;
   gint count_s1b;
   gint count_s2;
+  gint count_s4;
+  gint count_s5;
   gint count_name_owner_changed;
   GError *error;
   gboolean ret;
@@ -618,6 +627,26 @@ test_connection_signals (void)
                                            test_connection_signal_handler,
                                            &count_name_owner_changed,
                                            NULL);
+  s4 = g_dbus_connection_signal_subscribe (c1,
+                                           ":1.2",  /* sender */
+                                           "org.gtk.GDBus.ExampleInterface",  /* interface */
+                                           "FooArg0",  /* member */
+                                           "/org/gtk/GDBus/ExampleInterface",  /* path */
+                                           NULL,
+                                           G_DBUS_SIGNAL_FLAGS_NONE,
+                                           test_connection_signal_handler,
+                                           &count_s4,
+                                           NULL);
+  s5 = g_dbus_connection_signal_subscribe (c1,
+                                           ":1.2",  /* sender */
+                                           "org.gtk.GDBus.ExampleInterface",  /* interface */
+                                           "FooArg0",  /* member */
+                                           "/org/gtk/GDBus/ExampleInterface",  /* path */
+                                           "some-arg0",
+                                           G_DBUS_SIGNAL_FLAGS_NONE,
+                                           test_connection_signal_handler,
+                                           &count_s5,
+                                           NULL);
   /* Note that s1b is *just like* s1 - this is to catch a bug where N
    * subscriptions of the same rule causes N calls to each of the N
    * subscriptions instead of just 1 call to each of the N subscriptions.
@@ -636,10 +665,14 @@ test_connection_signals (void)
   g_assert_cmpuint (s1b, !=, 0);
   g_assert_cmpuint (s2, !=, 0);
   g_assert_cmpuint (s3, !=, 0);
+  g_assert_cmpuint (s4, !=, 0);
+  g_assert_cmpuint (s5, !=, 0);
 
   count_s1 = 0;
   count_s1b = 0;
   count_s2 = 0;
+  count_s4 = 0;
+  count_s5 = 0;
   count_name_owner_changed = 0;
 
   /*
@@ -712,6 +745,38 @@ test_connection_signals (void)
   g_assert_cmpint (count_s1, ==, 1);
   g_assert_cmpint (count_s2, ==, 2);
 
+  /* Emit another signal on c2 with and without arg0 set, to check matching on that.
+   * Matching should fail on s5 when the signal is not emitted with an arg0. It
+   * should succeed on s4 both times, as that doesn’t require an arg0 match. */
+  ret = g_dbus_connection_emit_signal (c2,
+                                       NULL, /* destination bus name */
+                                       "/org/gtk/GDBus/ExampleInterface",
+                                       "org.gtk.GDBus.ExampleInterface",
+                                       "FooArg0",
+                                       NULL,
+                                       &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  while (count_s4 < 1)
+    g_main_loop_run (loop);
+  g_assert_cmpint (count_s4, ==, 1);
+
+  ret = g_dbus_connection_emit_signal (c2,
+                                       NULL, /* destination bus name */
+                                       "/org/gtk/GDBus/ExampleInterface",
+                                       "org.gtk.GDBus.ExampleInterface",
+                                       "FooArg0",
+                                       g_variant_new_parsed ("('some-arg0',)"),
+                                       &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  while (count_s5 < 1)
+    g_main_loop_run (loop);
+  g_assert_cmpint (count_s4, ==, 2);
+  g_assert_cmpint (count_s5, ==, 1);
+
   /*
    * Also to check the total amount of NameOwnerChanged signals - use a 5 second ceiling
    * to avoid spinning forever
@@ -724,11 +789,15 @@ test_connection_signals (void)
   g_assert_cmpint (count_s1, ==, 1);
   g_assert_cmpint (count_s2, ==, 2);
   g_assert_cmpint (count_name_owner_changed, ==, 2);
+  g_assert_cmpint (count_s4, ==, 2);
+  g_assert_cmpint (count_s5, ==, 1);
 
   g_dbus_connection_signal_unsubscribe (c1, s1);
   g_dbus_connection_signal_unsubscribe (c1, s2);
   g_dbus_connection_signal_unsubscribe (c1, s3);
   g_dbus_connection_signal_unsubscribe (c1, s1b);
+  g_dbus_connection_signal_unsubscribe (c1, s4);
+  g_dbus_connection_signal_unsubscribe (c1, s5);
 
   g_object_unref (c1);
   g_object_unref (c2);

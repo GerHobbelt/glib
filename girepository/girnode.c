@@ -571,7 +571,7 @@ gi_ir_node_get_size (GIIrNode *node)
 
   g_assert (size <= G_MAXUINT32);
 
-  return size;
+  return (guint32) size;
 }
 
 static void
@@ -594,8 +594,7 @@ gi_ir_node_get_full_size_internal (GIIrNode *parent,
   GList *l;
   size_t size, n;
 
-  if (node == NULL && parent != NULL)
-    g_error ("Caught NULL node, parent=%s", parent->name);
+  g_assert (node != NULL);
 
   g_debug ("node %p type '%s'", node,
            gi_ir_node_type_to_string (node->type));

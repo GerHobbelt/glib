@@ -930,7 +930,7 @@ g_ascii_formatd (gchar       *buffer,
   const char *decimal_point;
   gsize decimal_point_len;
   gchar *p;
-  int rest_len;
+  size_t rest_len;
   gchar format_char;
 
   g_return_val_if_fail (buffer != NULL, NULL);
@@ -2732,7 +2732,11 @@ g_strjoin (const gchar *separator,
  * A length of `-1` can be used to mean “search the entire string”, like
  * `strstr()`.
  *
- * Returns: a pointer to the found occurrence, or `NULL` if not found
+ * The fact that this function returns `gchar *` rather than `const gchar *` is
+ * a historical artifact.
+ *
+ * Returns: (transfer none) (nullable): a pointer to the found occurrence, or
+ *    `NULL` if not found
  */
 gchar *
 g_strstr_len (const gchar *haystack,
@@ -2784,7 +2788,11 @@ g_strstr_len (const gchar *haystack,
  * Searches the string @haystack for the last occurrence
  * of the string @needle.
  *
- * Returns: a pointer to the found occurrence, or `NULL` if not found
+ * The fact that this function returns `gchar *` rather than `const gchar *` is
+ * a historical artifact.
+ *
+ * Returns: (transfer none) (nullable): a pointer to the found occurrence, or
+ *    `NULL` if not found
  */
 gchar *
 g_strrstr (const gchar *haystack,
@@ -2835,7 +2843,11 @@ g_strrstr (const gchar *haystack,
  * of the string @needle, limiting the length of the search
  * to @haystack_len.
  *
- * Returns: a pointer to the found occurrence, or `NULL` if not found
+ * The fact that this function returns `gchar *` rather than `const gchar *` is
+ * a historical artifact.
+ *
+ * Returns: (transfer none) (nullable): a pointer to the found occurrence, or
+ *    `NULL` if not found
  */
 gchar *
 g_strrstr_len (const gchar *haystack,

@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.80.0',
+  version : '2.81.0',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 1.2.0',
   default_options : [
@@ -549,6 +549,7 @@ if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
     '-Wmisleading-indentation',
     '-Wmissing-field-initializers',
     '-Wnonnull',
+    '-Wnull-dereference',
     '-Wunused',
     # Due to maintained deprecated code, we do not want to see unused parameters
     '-Wno-unused-parameter',
@@ -633,6 +634,11 @@ endif
 # See https://github.com/mesonbuild/meson/pull/3520 for a way to eventually
 # improve this.
 glib_link_flags = cc.get_supported_link_arguments(warning_c_link_args)
+
+glib_sanitizers = get_option('b_sanitize').split(',')
+if glib_sanitizers == ['none']
+  glib_sanitizers = []
+endif
 
 # Windows SDK requirements and checks
 if host_system == 'windows'
@@ -994,7 +1000,7 @@ if cc.compiles('''#include <linux/futex.h>
                int main (int argc, char ** argv) {
                  syscall (__NR_futex_time64, NULL, FUTEX_WAKE, FUTEX_WAIT);
                  return 0;
-               }''', name : 'futex(2) system call')
+               }''', name : 'futex_time64(2) system call')
   glib_conf.set('HAVE_FUTEX_TIME64', 1)
 endif
 
@@ -1006,6 +1012,19 @@ if cc.links('''#include <sys/eventfd.h>
                  return 0;
                }''', name : 'eventfd(2) system call')
   glib_conf.set('HAVE_EVENTFD', 1)
+endif
+
+# Check for ppoll(2)
+if cc.links('''#define _GNU_SOURCE
+               #include <poll.h>
+               #include <stddef.h>
+               int main (int argc, char ** argv) {
+                 struct pollfd fds[1] = {{0}};
+                 struct timespec ts = {0};
+                 ppoll (fds, 1, NULL, NULL);
+                 return 0;
+               }''', name : 'ppoll(2) system call')
+  glib_conf.set('HAVE_PPOLL', 1)
 endif
 
 # Check for pidfd_open(2)
@@ -2219,6 +2238,15 @@ libffi_dep = dependency('libffi', version : '>= 3.0.0')
 
 libz_dep = dependency('zlib')
 
+libatomic_test_code = '''
+  int main (int argc, char ** argv) {
+    return 0;
+  }'''
+atomic_dep = []
+if cc.links(libatomic_test_code, args : '-latomic', name : 'check for -latomic')
+  atomic_dep = cc.find_library('atomic')
+endif
+
 # First check in libc, fallback to libintl, and as last chance build
 # proxy-libintl subproject.
 # FIXME: glib-gettext.m4 has much more checks to detect broken/uncompatible
@@ -2420,8 +2448,6 @@ endif
 glib_conf.set('HAVE_PROC_SELF_CMDLINE', have_proc_self_cmdline)
 
 python = import('python').find_installation(modules: ['packaging'])
-# used for '#!/usr/bin/env <name>'
-python_name = 'python3'
 
 python_version = python.language_version()
 python_version_req = '>=3.7'

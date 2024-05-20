@@ -9,7 +9,7 @@ gi_gen_shared_sources = [
 
 gi_gen_env_variables = environment()
 
-if get_option('b_sanitize') != ''
+if 'address' in glib_sanitizers
   gi_gen_env_variables.append(
     'ASAN_OPTIONS', 'verify_asan_link_order=0', separator: ',')
 endif
@@ -49,6 +49,7 @@ glib_gir = gnome.generate_gir(libglib,
   export_packages: 'glib-2.0',
   header: 'glib.h',
   install: true,
+  install_dir_gir: glib_girdir,
   dependencies: [
     libgobject_dep,
   ],
@@ -76,6 +77,7 @@ if host_system == 'windows'
     header: 'glib.h',
     includes: [ glib_gir[0] ],
     install: true,
+    install_dir_gir: glib_girdir,
     dependencies: [
       libgobject_dep,
     ],
@@ -104,6 +106,7 @@ else
     header: 'glib.h',
     includes: [ glib_gir[0] ],
     install: true,
+    install_dir_gir: glib_girdir,
     dependencies: [
       libgobject_dep,
     ],
@@ -137,6 +140,7 @@ gobject_gir = gnome.generate_gir(libgobject,
   header: 'glib-object.h',
   includes: [ glib_gir[0] ],
   install: true,
+  install_dir_gir: glib_girdir,
   env: gi_gen_env_variables,
   extra_args: gir_args + [
       '-DGOBJECT_COMPILATION',
@@ -162,6 +166,7 @@ gmodule_gir = gnome.generate_gir(libgmodule,
   header: 'gmodule.h',
   includes: [ glib_gir[0] ],
   install: true,
+  install_dir_gir: glib_girdir,
   dependencies: [
     libglib_dep,
   ],
@@ -224,6 +229,7 @@ gio_gir = gnome.generate_gir(libgio,
   header: 'gio/gio.h',
   includes: [ glib_gir[0], gmodule_gir[0], gobject_gir[0] ],
   install: true,
+  install_dir_gir: glib_girdir,
   dependencies: [
     libglib_dep,
     libgobject_dep,
@@ -249,6 +255,7 @@ if host_system == 'windows'
     header: 'gio/gio.h',
     includes: [ glib_gir[0], gmodule_gir[0], gobject_gir[0], gio_gir[0] ],
     install: true,
+    install_dir_gir: glib_girdir,
     dependencies: [
       libglib_dep,
       libgobject_dep,
@@ -261,6 +268,7 @@ if host_system == 'windows'
       '--identifier-prefix=GWin32'
     ],
   )
+  gio_platform_gir = gio_win32_gir
 else
   gio_unix_gir_c_includes = []
   foreach h: gio_unix_include_headers
@@ -277,6 +285,7 @@ else
     header: 'gio/gio.h',
     includes: [ glib_gir[0], gmodule_gir[0], gobject_gir[0], gio_gir[0] ],
     install: true,
+    install_dir_gir: glib_girdir,
     dependencies: [
       libglib_dep,
       libgobject_dep,
@@ -289,6 +298,7 @@ else
       '--identifier-prefix=GUnix'
     ],
   )
+  gio_platform_gir = gio_unix_gir
 endif
 
 # GIRepository
@@ -314,6 +324,7 @@ girepository_gir = gnome.generate_gir(libgirepository,
   header: 'girepository/girepository.h',
   includes: [ glib_gir[0], gmodule_gir[0], gobject_gir[0], gio_gir[0] ],
   install: true,
+  install_dir_gir: glib_girdir,
   dependencies: [ libglib_dep, libgobject_dep, libgmodule_dep, libgio_dep ],
   extra_args: gir_args + libgirepository_gir_args,
 )
