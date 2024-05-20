@@ -34,6 +34,7 @@
 #include <girepository/giarginfo.h>
 #include <girepository/gibaseinfo.h>
 #include <girepository/gicallableinfo.h>
+#include <girepository/gicallbackinfo.h>
 #include <girepository/giconstantinfo.h>
 #include <girepository/gienuminfo.h>
 #include <girepository/gifieldinfo.h>
@@ -48,6 +49,7 @@
 #include <girepository/gitypelib.h>
 #include <girepository/gitypes.h>
 #include <girepository/giunioninfo.h>
+#include <girepository/giunresolvedinfo.h>
 #include <girepository/givfuncinfo.h>
 
 G_BEGIN_DECLS
@@ -59,12 +61,6 @@ G_BEGIN_DECLS
 #define GI_IS_REPOSITORY_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GI_TYPE_REPOSITORY))
 #define GI_REPOSITORY_GET_CLASS(obj)    (G_TYPE_INSTANCE_GET_CLASS ((obj), GI_TYPE_REPOSITORY, GIRepositoryClass))
 
-/**
- * GIRepository:
- *
- * The GIRepository structure contains private data and should only be
- * accessed using the provided API.
- */
 typedef struct _GIRepository         GIRepository;
 typedef struct _GIRepositoryClass    GIRepositoryClass;
 typedef struct _GIRepositoryPrivate  GIRepositoryPrivate;
@@ -87,6 +83,8 @@ struct _GIRepositoryClass
  * @GI_REPOSITORY_LOAD_FLAG_LAZY: Lazily load the typelib.
  *
  * Flags that control how a typelib is loaded.
+ *
+ * Since: 2.80
  */
 typedef enum
 {
@@ -102,13 +100,16 @@ GI_AVAILABLE_IN_ALL
 GIRepository *gi_repository_get_default   (void);
 
 GI_AVAILABLE_IN_ALL
+GIRepository *gi_repository_new (void);
+
+GI_AVAILABLE_IN_ALL
 void          gi_repository_prepend_search_path (const char *directory);
 
 GI_AVAILABLE_IN_ALL
 void          gi_repository_prepend_library_path (const char *directory);
 
 GI_AVAILABLE_IN_ALL
-GSList *      gi_repository_get_search_path     (void);
+const char * const * gi_repository_get_search_path (size_t *n_paths_out);
 
 GI_AVAILABLE_IN_ALL
 const char *  gi_repository_load_typelib  (GIRepository           *repository,
@@ -127,8 +128,9 @@ GIBaseInfo *  gi_repository_find_by_name  (GIRepository *repository,
                                            const gchar  *name);
 
 GI_AVAILABLE_IN_ALL
-GList *       gi_repository_enumerate_versions (GIRepository *repository,
-                                                const gchar  *namespace_);
+char       ** gi_repository_enumerate_versions (GIRepository *repository,
+                                                const gchar  *namespace_,
+                                                size_t       *n_versions_out);
 
 GI_AVAILABLE_IN_ALL
 GITypelib *    gi_repository_require       (GIRepository           *repository,
@@ -163,17 +165,17 @@ GIBaseInfo *  gi_repository_find_by_gtype (GIRepository *repository,
 GI_AVAILABLE_IN_ALL
 void          gi_repository_get_object_gtype_interfaces (GIRepository      *repository,
                                                          GType              gtype,
-                                                         guint             *n_interfaces_out,
+                                                         gsize             *n_interfaces_out,
                                                          GIInterfaceInfo ***interfaces_out);
 
 GI_AVAILABLE_IN_ALL
-gint          gi_repository_get_n_infos   (GIRepository *repository,
+guint         gi_repository_get_n_infos   (GIRepository *repository,
                                            const gchar  *namespace_);
 
 GI_AVAILABLE_IN_ALL
 GIBaseInfo *  gi_repository_get_info      (GIRepository *repository,
                                            const gchar  *namespace_,
-                                           gint          index);
+                                           guint         idx);
 
 GI_AVAILABLE_IN_ALL
 GIEnumInfo *  gi_repository_find_by_error_domain (GIRepository *repository,
@@ -198,7 +200,9 @@ GOptionGroup * gi_repository_get_option_group (void);
 
 
 GI_AVAILABLE_IN_ALL
-gboolean       gi_repository_dump  (const char *arg, GError **error);
+gboolean       gi_repository_dump  (const char  *input_filename,
+                                    const char  *output_filename,
+                                    GError     **error);
 
 /**
  * GIRepositoryError:
@@ -210,8 +214,10 @@ gboolean       gi_repository_dump  (const char *arg, GError **error);
  * @GI_REPOSITORY_ERROR_LIBRARY_NOT_FOUND: the library used by the typelib
  *   could not be found.
  *
- * An error code used with #GI_REPOSITORY_ERROR in a #GError returned
- * from a #GIRepository routine.
+ * An error code used with `GI_REPOSITORY_ERROR` in a [type@GLib.Error]
+ * returned from a [class@GIRepository.Repository] routine.
+ *
+ * Since: 2.80
  */
 typedef enum
 {
@@ -224,9 +230,12 @@ typedef enum
 /**
  * GI_REPOSITORY_ERROR:
  *
- * Error domain for #GIRepository. Errors in this domain will be from the
- * #GIRepositoryError enumeration. See #GError for more information on
- * error domains.
+ * Error domain for [class@GIRepository.Repository].
+ *
+ * Errors in this domain will be from the [enum@GIRepository.Error] enumeration.
+ * See [type@GLib.Error] for more information on error domains.
+ *
+ * Since: 2.80
  */
 #define GI_REPOSITORY_ERROR (gi_repository_error_quark ())
 

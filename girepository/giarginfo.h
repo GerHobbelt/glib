@@ -33,13 +33,15 @@
 G_BEGIN_DECLS
 
 /**
- * GI_IS_ARG_INFO
+ * GI_IS_ARG_INFO:
  * @info: an info structure
  *
- * Checks if @info is a GIArgInfo.
+ * Checks if @info is a [class@GIRepository.ArgInfo].
+ *
+ * Since: 2.80
  */
 #define GI_IS_ARG_INFO(info) \
-    (gi_base_info_get_type((GIBaseInfo*)info) ==  GI_INFO_TYPE_ARG)
+    (gi_base_info_get_info_type ((GIBaseInfo*) info) ==  GI_INFO_TYPE_ARG)
 
 
 GI_AVAILABLE_IN_ALL
@@ -67,13 +69,13 @@ GI_AVAILABLE_IN_ALL
 GIScopeType            gi_arg_info_get_scope              (GIArgInfo *info);
 
 GI_AVAILABLE_IN_ALL
-gint                   gi_arg_info_get_closure            (GIArgInfo *info);
+gint                   gi_arg_info_get_closure_index      (GIArgInfo *info);
 
 GI_AVAILABLE_IN_ALL
-gint                   gi_arg_info_get_destroy            (GIArgInfo *info);
+gint                   gi_arg_info_get_destroy_index      (GIArgInfo *info);
 
 GI_AVAILABLE_IN_ALL
-GITypeInfo *           gi_arg_info_get_type               (GIArgInfo *info);
+GITypeInfo *           gi_arg_info_get_type_info          (GIArgInfo *info);
 
 GI_AVAILABLE_IN_ALL
 void                   gi_arg_info_load_type              (GIArgInfo *info,

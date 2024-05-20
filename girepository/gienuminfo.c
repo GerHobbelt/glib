@@ -27,22 +27,23 @@
 #include <glib.h>
 
 #include <girepository/girepository.h>
+#include "gibaseinfo-private.h"
 #include "girepository-private.h"
 #include "gitypelib-internal.h"
 #include "gienuminfo.h"
 
 /**
- * SECTION:gienuminfo
- * @title: GIEnumInfo
- * @short_description: Structs representing an enumeration and its values
+ * GIEnumInfo:
  *
- * A GIEnumInfo represents an enumeration, and a GIValueInfo represents
- * a value in the enumeration.
+ * A `GIEnumInfo` represents an enumeration.
  *
- * The GIEnumInfo contains a set of values and a type.
+ * The `GIEnumInfo` contains a set of values (each a
+ * [class@GIRepository.ValueInfo]) and a type.
  *
- * The GIValueInfo is fetched by calling gi_enum_info_get_value() on
- * a GIEnumInfo.
+ * The [class@GIRepository.ValueInfo] for a value is fetched by calling
+ * [method@GIRepository.EnumInfo.get_value] on a `GIEnumInfo`.
+ *
+ * Since: 2.80
  */
 
 /**
@@ -52,8 +53,9 @@
  * Obtain the number of values this enumeration contains.
  *
  * Returns: the number of enumeration values
+ * Since: 2.80
  */
-gint
+guint
 gi_enum_info_get_n_values (GIEnumInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
@@ -74,8 +76,8 @@ gi_enum_info_get_n_values (GIEnumInfo *info)
  * Obtain the string form of the quark for the error domain associated with
  * this enum, if any.
  *
- * Returns: (transfer none): the string form of the error domain associated
- * with this enum, or %NULL.
+ * Returns: (transfer none) (nullable): the string form of the error domain
+ *   associated with this enum, or `NULL`.
  * Since: 2.80
  */
 const gchar *
@@ -102,12 +104,13 @@ gi_enum_info_get_error_domain (GIEnumInfo *info)
  *
  * Obtain a value for this enumeration.
  *
- * Returns: (transfer full): the enumeration value or %NULL if type tag is wrong,
- *   free the struct with gi_base_info_unref() when done.
+ * Returns: (transfer full): the enumeration value, free the struct with
+ *   [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIValueInfo *
 gi_enum_info_get_value (GIEnumInfo *info,
-		       gint        n)
+                        guint        n)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   Header *header;
@@ -132,7 +135,7 @@ gi_enum_info_get_value (GIEnumInfo *info,
  * Returns: number of methods
  * Since: 2.80
  */
-gint
+guint
 gi_enum_info_get_n_methods (GIEnumInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
@@ -153,13 +156,13 @@ gi_enum_info_get_n_methods (GIEnumInfo *info)
  *
  * Obtain an enum type method at index @n.
  *
- * Returns: (transfer full): the #GIFunctionInfo. Free the struct by calling
- *   gi_base_info_unref() when done.
+ * Returns: (transfer full): the [class@GIRepository.FunctionInfo]. Free the
+ *   struct by calling [method@GIRepository.BaseInfo.unref] when done.
  * Since: 2.80
  */
 GIFunctionInfo *
 gi_enum_info_get_method (GIEnumInfo *info,
-                         gint        n)
+                         guint       n)
 {
   gint offset;
   GIRealInfo *rinfo = (GIRealInfo *)info;
@@ -192,6 +195,7 @@ gi_enum_info_get_method (GIEnumInfo *info,
  * may not match the sign of the type used by the C compiler.
  *
  * Returns: the storage type for the enumeration
+ * Since: 2.80
  */
 GITypeTag
 gi_enum_info_get_storage_type (GIEnumInfo *info)
@@ -207,15 +211,36 @@ gi_enum_info_get_storage_type (GIEnumInfo *info)
   return blob->storage_type;
 }
 
+void
+gi_enum_info_class_init (gpointer g_class,
+                         gpointer class_data)
+{
+  GIBaseInfoClass *info_class = g_class;
+
+  info_class->info_type = GI_INFO_TYPE_ENUM;
+}
+
+/**
+ * GIValueInfo:
+ *
+ * A `GIValueInfo` represents a value in an enumeration.
+ *
+ * The `GIValueInfo` is fetched by calling
+ * [method@GIRepository.EnumInfo.get_value] on a [class@GIRepository.EnumInfo].
+ *
+ * Since: 2.80
+ */
+
 /**
  * gi_value_info_get_value:
  * @info: a #GIValueInfo
  *
- * Obtain the enumeration value of the #GIValueInfo.
+ * Obtain the enumeration value of the `GIValueInfo`.
  *
  * Returns: the enumeration value. This will always be representable
- *   as a 32-bit signed or unsigned value. The use of gint64 as the
+ *   as a 32-bit signed or unsigned value. The use of `gint64` as the
  *   return type is to allow both.
+ * Since: 2.80
  */
 gint64
 gi_value_info_get_value (GIValueInfo *info)
@@ -232,4 +257,13 @@ gi_value_info_get_value (GIValueInfo *info)
     return (gint64)(guint32)blob->value;
   else
     return (gint64)blob->value;
+}
+
+void
+gi_value_info_class_init (gpointer g_class,
+                          gpointer class_data)
+{
+  GIBaseInfoClass *info_class = g_class;
+
+  info_class->info_type = GI_INFO_TYPE_VALUE;
 }

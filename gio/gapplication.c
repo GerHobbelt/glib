@@ -208,7 +208,7 @@
  *     using its D-Bus backend. You can use this to export extra objects on the
  *     bus, that need to exist before the application tries to own the bus name.
  *     The function is passed the #GDBusConnection to to session bus, and the
- *     object path that #GApplication will use to export is D-Bus API.
+ *     object path that #GApplication will use to export its D-Bus API.
  *     If this function returns %TRUE, registration will proceed; otherwise
  *     registration will abort. Since: 2.34
  * @dbus_unregister: invoked locally during unregistration, if the application
@@ -2981,6 +2981,9 @@ g_application_get_is_busy (GApplication *application)
  * If @notification is no longer relevant, it can be withdrawn with
  * g_application_withdraw_notification().
  *
+ * It is an error to call this function if @application has no
+ * application ID.
+ *
  * Since: 2.40
  */
 void
@@ -2994,6 +2997,7 @@ g_application_send_notification (GApplication  *application,
   g_return_if_fail (G_IS_NOTIFICATION (notification));
   g_return_if_fail (g_application_get_is_registered (application));
   g_return_if_fail (!g_application_get_is_remote (application));
+  g_return_if_fail (g_application_get_application_id (application) != NULL);
 
   if (application->priv->notifications == NULL)
     application->priv->notifications = g_notification_backend_new_default (application);

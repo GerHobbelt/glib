@@ -1,12 +1,19 @@
-if get_option('man')
+if get_option('man-pages').enabled()
   manpages = ['glib-mkenums', 'glib-genmarshal', 'gobject-query']
   foreach page : manpages
     custom_target(page + '-man',
-      input: page + '.xml',
+      input: page + '.rst',
       output: page + '.1',
-      command: xsltproc_command,
+      command: [
+        rst2man,
+        rst2man_flags,
+        '@INPUT@',
+      ],
+      capture: true,
       install: true,
-      install_dir: man1_dir)
+      install_dir: man1_dir,
+      install_tag: 'doc',
+    )
   endforeach
 endif
 
@@ -39,4 +46,7 @@ custom_target('gobject-docs',
   ],
   build_by_default: true,
   depend_files: expand_content_files,
+  install: true,
+  install_dir: docs_dir,
+  install_tag: 'doc',
 )

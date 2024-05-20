@@ -29,18 +29,19 @@
 #include <glib.h>
 
 #include <girepository/girepository.h>
+#include "gibaseinfo-private.h"
 #include "girepository-private.h"
 #include "gitypelib-internal.h"
 #include "gistructinfo.h"
 
 /**
- * SECTION:gistructinfo
- * @title: GIStructInfo
- * @short_description: Struct representing a C structure
+ * GIStructInfo:
  *
- * GIStructInfo represents a generic C structure type.
+ * `GIStructInfo` represents a generic C structure type.
  *
  * A structure has methods and fields.
+ *
+ * Since: 2.80
  */
 
 /**
@@ -50,8 +51,9 @@
  * Obtain the number of fields this structure has.
  *
  * Returns: number of fields
+ * Since: 2.80
  */
-gint
+guint
 gi_struct_info_get_n_fields (GIStructInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
@@ -67,19 +69,19 @@ gi_struct_info_get_n_fields (GIStructInfo *info)
  *
  * Obtain the offset of the specified field.
  *
- * Returns: field offset in bytes
+ * Returns: field offset, in bytes
+ * Since: 2.80
  */
 static gint32
 gi_struct_get_field_offset (GIStructInfo *info,
-                            gint          n)
+                            guint         n)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   Header *header = (Header *)rinfo->typelib->data;
   guint32 offset = rinfo->offset + header->struct_blob_size;
-  gint i;
   FieldBlob *field_blob;
 
-  for (i = 0; i < n; i++)
+  for (guint i = 0; i < n; i++)
     {
       field_blob = (FieldBlob *)&rinfo->typelib->data[offset];
       offset += header->field_blob_size;
@@ -97,12 +99,13 @@ gi_struct_get_field_offset (GIStructInfo *info,
  *
  * Obtain the type information for field with specified index.
  *
- * Returns: (transfer full): the #GIFieldInfo, free it with gi_base_info_unref()
- * when done.
+ * Returns: (transfer full): The [class@GIRepository.FieldInfo]. Free it with
+ *   [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIFieldInfo *
 gi_struct_info_get_field (GIStructInfo *info,
-                          gint          n)
+                          guint         n)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
 
@@ -117,9 +120,10 @@ gi_struct_info_get_field (GIStructInfo *info,
  *
  * Obtain the type information for field named @name.
  *
+ * Returns: (transfer full) (nullable): The [class@GIRepository.FieldInfo], or
+ *   `NULL` if not found. Free it with [method@GIRepository.BaseInfo.unref] when
+ *   done.
  * Since: 2.80
- * Returns: (transfer full): the #GIFieldInfo or %NULL if not found,
- * free it with gi_base_info_unref() when done.
  */
 GIFieldInfo *
 gi_struct_info_find_field (GIStructInfo *info,
@@ -159,8 +163,9 @@ gi_struct_info_find_field (GIStructInfo *info,
  * Obtain the number of methods this structure has.
  *
  * Returns: number of methods
+ * Since: 2.80
  */
-gint
+guint
 gi_struct_info_get_n_methods (GIStructInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
@@ -176,12 +181,13 @@ gi_struct_info_get_n_methods (GIStructInfo *info)
  *
  * Obtain the type information for method with specified index.
  *
- * Returns: (transfer full): the #GIFunctionInfo, free it with gi_base_info_unref()
- * when done.
+ * Returns: (transfer full): The [class@GIRepository.FunctionInfo]. Free it with
+ *   [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIFunctionInfo *
 gi_struct_info_get_method (GIStructInfo *info,
-                           gint          n)
+                           guint         n)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   StructBlob *blob = (StructBlob *)&rinfo->typelib->data[rinfo->offset];
@@ -200,8 +206,10 @@ gi_struct_info_get_method (GIStructInfo *info,
  *
  * Obtain the type information for method named @name.
  *
- * Returns: (transfer full): the #GIFunctionInfo, free it with gi_base_info_unref()
- * when done.
+ * Returns: (transfer full) (nullable): The [class@GIRepository.FunctionInfo],
+ *   or `NULL` if none was found. Free it with
+ *   [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIFunctionInfo *
 gi_struct_info_find_method (GIStructInfo *info,
@@ -221,7 +229,8 @@ gi_struct_info_find_method (GIStructInfo *info,
  *
  * Obtain the total size of the structure.
  *
- * Returns: size of the structure in bytes
+ * Returns: size of the structure, in bytes
+ * Since: 2.80
  */
 gsize
 gi_struct_info_get_size (GIStructInfo *info)
@@ -238,7 +247,8 @@ gi_struct_info_get_size (GIStructInfo *info)
  *
  * Obtain the required alignment of the structure.
  *
- * Returns: required alignment in bytes
+ * Returns: required alignment, in bytes
+ * Since: 2.80
  */
 gsize
 gi_struct_info_get_alignment (GIStructInfo *info)
@@ -251,11 +261,13 @@ gi_struct_info_get_alignment (GIStructInfo *info)
 
 /**
  * gi_struct_info_is_foreign:
- * @info: TODO
+ * @info: a #GIStructInfo
  *
- * TODO
+ * Gets whether the structure is foreign, i.e. if it’s expected to be overridden
+ * by a native language binding instead of relying of introspected bindings.
  *
- * Returns: TODO
+ * Returns: `TRUE` if the structure is foreign
+ * Since: 2.80
  */
 gboolean
 gi_struct_info_is_foreign (GIStructInfo *info)
@@ -270,11 +282,14 @@ gi_struct_info_is_foreign (GIStructInfo *info)
  * gi_struct_info_is_gtype_struct:
  * @info: a #GIStructInfo
  *
- * Return true if this structure represents the "class structure" for some
- * #GObject or #GInterface.  This function is mainly useful to hide this kind of structure
- * from generated public APIs.
+ * Return true if this structure represents the ‘class structure’ for some
+ * [class@GObject.Object] or `GInterface`.
  *
- * Returns: %TRUE if this is a class struct, %FALSE otherwise
+ * This function is mainly useful to hide this kind of structure from generated
+ * public APIs.
+ *
+ * Returns: `TRUE` if this is a class struct, `FALSE` otherwise
+ * Since: 2.80
  */
 gboolean
 gi_struct_info_is_gtype_struct (GIStructInfo *info)
@@ -286,17 +301,17 @@ gi_struct_info_is_gtype_struct (GIStructInfo *info)
 }
 
 /**
- * gi_struct_info_get_copy_function:
+ * gi_struct_info_get_copy_function_name:
  * @info: a struct information blob
  *
  * Retrieves the name of the copy function for @info, if any is set.
  *
- * Returns: (transfer none) (nullable): the name of the copy function
- *
+ * Returns: (transfer none) (nullable): the name of the copy function, or `NULL`
+ *   if the structure has no copy function
  * Since: 2.80
  */
 const char *
-gi_struct_info_get_copy_function (GIStructInfo *info)
+gi_struct_info_get_copy_function_name (GIStructInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   StructBlob *blob;
@@ -313,17 +328,17 @@ gi_struct_info_get_copy_function (GIStructInfo *info)
 }
 
 /**
- * gi_struct_info_get_free_function:
+ * gi_struct_info_get_free_function_name:
  * @info: a struct information blob
  *
  * Retrieves the name of the free function for @info, if any is set.
  *
- * Returns: (transfer none) (nullable): the name of the free function
- *
+ * Returns: (transfer none) (nullable): the name of the free function, or `NULL`
+ *   if the structure has no free function
  * Since: 2.80
  */
 const char *
-gi_struct_info_get_free_function (GIStructInfo *info)
+gi_struct_info_get_free_function_name (GIStructInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
   StructBlob *blob;
@@ -337,4 +352,13 @@ gi_struct_info_get_free_function (GIStructInfo *info)
     return gi_typelib_get_string (rinfo->typelib, blob->free_func);
 
   return NULL;
+}
+
+void
+gi_struct_info_class_init (gpointer g_class,
+                           gpointer class_data)
+{
+  GIBaseInfoClass *info_class = g_class;
+
+  info_class->info_type = GI_INFO_TYPE_STRUCT;
 }

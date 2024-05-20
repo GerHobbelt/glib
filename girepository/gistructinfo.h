@@ -33,32 +33,34 @@
 G_BEGIN_DECLS
 
 /**
- * GI_IS_STRUCT_INFO
+ * GI_IS_STRUCT_INFO:
  * @info: an info structure
  *
- * Checks if @info is a #GIStructInfo.
+ * Checks if @info is a [class@GIRepository.StructInfo].
+ *
+ * Since: 2.80
  */
 #define GI_IS_STRUCT_INFO(info) \
-    (gi_base_info_get_type((GIBaseInfo*)info) ==  GI_INFO_TYPE_STRUCT)
+    (gi_base_info_get_info_type ((GIBaseInfo*) info) ==  GI_INFO_TYPE_STRUCT)
 
 
 GI_AVAILABLE_IN_ALL
-gint             gi_struct_info_get_n_fields    (GIStructInfo *info);
+guint            gi_struct_info_get_n_fields    (GIStructInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GIFieldInfo *    gi_struct_info_get_field       (GIStructInfo *info,
-                                                 gint          n);
+                                                 guint         n);
 
 GI_AVAILABLE_IN_ALL
 GIFieldInfo *    gi_struct_info_find_field      (GIStructInfo *info,
                                                  const gchar  *name);
 
 GI_AVAILABLE_IN_ALL
-gint             gi_struct_info_get_n_methods   (GIStructInfo *info);
+guint            gi_struct_info_get_n_methods   (GIStructInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GIFunctionInfo * gi_struct_info_get_method      (GIStructInfo *info,
-                                                 gint          n);
+                                                 guint         n);
 
 GI_AVAILABLE_IN_ALL
 GIFunctionInfo * gi_struct_info_find_method     (GIStructInfo *info,
@@ -77,9 +79,9 @@ GI_AVAILABLE_IN_ALL
 gboolean         gi_struct_info_is_foreign      (GIStructInfo *info);
 
 GI_AVAILABLE_IN_ALL
-const char *     gi_struct_info_get_copy_function (GIStructInfo *info);
+const char *     gi_struct_info_get_copy_function_name (GIStructInfo *info);
 
 GI_AVAILABLE_IN_ALL
-const char *     gi_struct_info_get_free_function (GIStructInfo *info);
+const char *     gi_struct_info_get_free_function_name (GIStructInfo *info);
 
 G_END_DECLS

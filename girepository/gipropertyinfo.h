@@ -33,20 +33,22 @@
 G_BEGIN_DECLS
 
 /**
- * GI_IS_PROPERTY_INFO
+ * GI_IS_PROPERTY_INFO:
  * @info: an info structure
  *
- * Checks if @info is a #GIPropertyInfo.
+ * Checks if @info is a [class@GIRepository.PropertyInfo].
+ *
+ * Since: 2.80
  */
 #define GI_IS_PROPERTY_INFO(info) \
-    (gi_base_info_get_type((GIBaseInfo*)info) ==  GI_INFO_TYPE_PROPERTY)
+    (gi_base_info_get_info_type ((GIBaseInfo*) info) ==  GI_INFO_TYPE_PROPERTY)
 
 
 GI_AVAILABLE_IN_ALL
 GParamFlags  gi_property_info_get_flags (GIPropertyInfo *info);
 
 GI_AVAILABLE_IN_ALL
-GITypeInfo * gi_property_info_get_type  (GIPropertyInfo *info);
+GITypeInfo *gi_property_info_get_type_info (GIPropertyInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GITransfer   gi_property_info_get_ownership_transfer (GIPropertyInfo *info);

@@ -29,6 +29,7 @@
 #include <glib.h>
 
 #include <girepository/girepository.h>
+#include "gibaseinfo-private.h"
 #include "girepository-private.h"
 #include "gitypelib-internal.h"
 #include "givfuncinfo.h"
@@ -36,10 +37,10 @@
 /**
  * GIVFuncInfo:
  *
- * `GIVfuncInfo` represents a virtual function.
+ * `GIVFuncInfo` represents a virtual function.
  *
  * A virtual function is a callable object that belongs to either a
- * [alias@GIRepository.ObjectInfo] or a [alias@GIRepository.InterfaceInfo].
+ * [type@GIRepository.ObjectInfo] or a [type@GIRepository.InterfaceInfo].
  *
  * Since: 2.80
  */
@@ -47,14 +48,13 @@
 GIVFuncInfo *
 gi_base_info_find_vfunc (GIRealInfo  *rinfo,
                          guint32      offset,
-                         gint         n_vfuncs,
+                         guint        n_vfuncs,
                          const gchar *name)
 {
   /* FIXME hash */
   Header *header = (Header *)rinfo->typelib->data;
-  gint i;
 
-  for (i = 0; i < n_vfuncs; i++)
+  for (guint i = 0; i < n_vfuncs; i++)
     {
       VFuncBlob *fblob = (VFuncBlob *)&rinfo->typelib->data[offset];
       const gchar *fname = (const gchar *)&rinfo->typelib->data[fblob->name];
@@ -114,13 +114,14 @@ gi_vfunc_info_get_flags (GIVFuncInfo *info)
  * gi_vfunc_info_get_offset:
  * @info: a #GIVFuncInfo
  *
- * Obtain the offset of the function pointer in the class struct. The value
- * `0xFFFF` indicates that the struct offset is unknown.
+ * Obtain the offset of the function pointer in the class struct.
+ *
+ * The value `0xFFFF` indicates that the struct offset is unknown.
  *
  * Returns: the struct offset or `0xFFFF` if it’s unknown
  * Since: 2.80
  */
-gint
+guint
 gi_vfunc_info_get_offset (GIVFuncInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
@@ -143,7 +144,7 @@ gi_vfunc_info_get_offset (GIVFuncInfo *info)
  * The signal comes from the object or interface to which
  * this virtual function belongs.
  *
- * Returns: (transfer full) (nullable): the signal or `NULL` if none set
+ * Returns: (transfer full) (nullable): the signal, or `NULL` if none is set
  * Since: 2.80
  */
 GISignalInfo *
@@ -172,8 +173,9 @@ gi_vfunc_info_get_signal (GIVFuncInfo *info)
  *
  * Not all virtuals will have invokers.
  *
- * Returns: (transfer full) (nullable): the [alias@GIRepository.FunctionInfo] or
- *   `NULL`. Free it with gi_base_info_unref() when done.
+ * Returns: (transfer full) (nullable): The [type@GIRepository.FunctionInfo] or
+ *   `NULL` if none is set. Free it with [method@GIRepository.BaseInfo.unref]
+ *   when done.
  * Since: 2.80
  */
 GIFunctionInfo *
@@ -194,7 +196,7 @@ gi_vfunc_info_get_invoker (GIVFuncInfo *info)
     return NULL;
 
   container = rinfo->container;
-  parent_type = gi_base_info_get_type (container);
+  parent_type = gi_base_info_get_info_type (container);
   if (parent_type == GI_INFO_TYPE_OBJECT)
     return gi_object_info_get_method ((GIObjectInfo*)container, blob->invoker);
   else if (parent_type == GI_INFO_TYPE_INTERFACE)
@@ -206,13 +208,13 @@ gi_vfunc_info_get_invoker (GIVFuncInfo *info)
 /**
  * gi_vfunc_info_get_address:
  * @info: a #GIVFuncInfo
- * @implementor_gtype: #GType implementing this virtual function
- * @error: return location for a #GError
+ * @implementor_gtype: [type@GObject.Type] implementing this virtual function
+ * @error: return location for a [type@GLib.Error], or `NULL`
  *
- * Looks up where inside the type struct of @implementor_gtype is the
- * implementation for @info.
+ * Looks up where the implementation for @info is inside the type struct of
+ * @implementor_gtype.
  *
- * Returns: address to a function or `NULL` if an error happened
+ * Returns: address to a function
  * Since: 2.80
  */
 gpointer
@@ -229,8 +231,12 @@ gi_vfunc_info_get_address (GIVFuncInfo  *vfunc_info,
   gpointer implementor_class, implementor_vtable;
   gpointer func = NULL;
 
-  container_info = gi_base_info_get_container (vfunc_info);
-  if (gi_base_info_get_type (container_info) == GI_INFO_TYPE_OBJECT)
+  g_return_val_if_fail (vfunc_info != NULL, NULL);
+  g_return_val_if_fail (GI_IS_VFUNC_INFO (vfunc_info), NULL);
+  g_return_val_if_fail (error == NULL || *error == NULL, NULL);
+
+  container_info = gi_base_info_get_container ((GIBaseInfo *) vfunc_info);
+  if (gi_base_info_get_info_type (container_info) == GI_INFO_TYPE_OBJECT)
     {
       object_info = (GIObjectInfo*) container_info;
       interface_info = NULL;
@@ -250,7 +256,7 @@ gi_vfunc_info_get_address (GIVFuncInfo  *vfunc_info,
 
       if (strcmp (gi_base_info_get_name ( (GIBaseInfo*) field_info),
                   gi_base_info_get_name ( (GIBaseInfo*) vfunc_info)) != 0) {
-          gi_base_info_unref (field_info);
+          gi_base_info_unref ((GIBaseInfo *) field_info);
           field_info = NULL;
           continue;
       }
@@ -284,7 +290,7 @@ gi_vfunc_info_get_address (GIVFuncInfo  *vfunc_info,
   offset = gi_field_info_get_offset (field_info);
   func = *(gpointer*) G_STRUCT_MEMBER_P (implementor_vtable, offset);
   g_type_class_unref (implementor_class);
-  gi_base_info_unref (field_info);
+  gi_base_info_unref ((GIBaseInfo *) field_info);
 
   if (func == NULL)
     {
@@ -306,43 +312,56 @@ gi_vfunc_info_get_address (GIVFuncInfo  *vfunc_info,
 /**
  * gi_vfunc_info_invoke: (skip)
  * @info: a #GIVFuncInfo describing the virtual function to invoke
- * @implementor: #GType of the type that implements this virtual function
+ * @implementor: [type@GObject.Type] of the type that implements this virtual
+ *   function
  * @in_args: (array length=n_in_args) (nullable): an array of
- *    [struct@GIRepository.Argument]s, one for each in parameter of @info. If
- *    there are no in parameter, @in_args can be `NULL`
+ *   [struct@GIRepository.Argument]s, one for each ‘in’ parameter of @info. If
+ *   there are no ‘in’ parameters, @in_args can be `NULL`
  * @n_in_args: the length of the @in_args array
  * @out_args: (array length=n_out_args) (nullable): an array of
- *    [struct@GIRepository.Argument]s, one for each out parameter of @info. If
- *    there are no out parameters, @out_args may be `NULL`
+ *   [struct@GIRepository.Argument]s allocated by the caller, one for each
+ *   ‘out’ parameter of @info. If there are no ‘out’ parameters, @out_args may
+ *   be `NULL`
  * @n_out_args: the length of the @out_args array
- * @return_value: (nullable): return location for the return value of the
- *    function. If the function returns void, @return_value may be
- *    `NULL`
+ * @return_value: (out caller-allocates) (not optional) (nullable): return
+ *   location for the return value from the vfunc; `NULL` may be returned if
+ *   the vfunc returns that
  * @error: return location for detailed error information, or `NULL`
  *
  * Invokes the function described in @info with the given
- * arguments. Note that inout parameters must appear in both
- * argument lists.
+ * arguments.
  *
- * Returns: true if the function has been invoked, false if an
- *   error occurred.
+ * Note that ‘inout’ parameters must appear in both argument lists.
+ *
+ * Returns: `TRUE` if the vfunc was executed successfully and didn’t throw
+ *   a [type@GLib.Error]; `FALSE` if @error is set
  * Since: 2.80
  */
 gboolean
 gi_vfunc_info_invoke (GIVFuncInfo      *info,
                       GType             implementor,
                       const GIArgument *in_args,
-                      int               n_in_args,
+                      gsize             n_in_args,
                       const GIArgument *out_args,
-                      int               n_out_args,
+                      gsize             n_out_args,
                       GIArgument       *return_value,
                       GError          **error)
 {
   gpointer func;
+  GError *local_error = NULL;
 
-  func = gi_vfunc_info_get_address (info, implementor, error);
-  if (*error != NULL)
-    return FALSE;
+  g_return_val_if_fail (info != NULL, FALSE);
+  g_return_val_if_fail (GI_IS_VFUNC_INFO (info), FALSE);
+  g_return_val_if_fail (in_args != NULL || n_in_args == 0, FALSE);
+  g_return_val_if_fail (out_args != NULL || n_out_args == 0, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  func = gi_vfunc_info_get_address (info, implementor, &local_error);
+  if (local_error != NULL)
+    {
+      g_propagate_error (error, g_steal_pointer (&local_error));
+      return FALSE;
+    }
 
   return gi_callable_info_invoke ((GICallableInfo*) info,
                                   func,
@@ -354,4 +373,13 @@ gi_vfunc_info_invoke (GIVFuncInfo      *info,
                                   TRUE,
                                   FALSE,
                                   error);
+}
+
+void
+gi_vfunc_info_class_init (gpointer g_class,
+                          gpointer class_data)
+{
+  GIBaseInfoClass *info_class = g_class;
+
+  info_class->info_type = GI_INFO_TYPE_VFUNC;
 }

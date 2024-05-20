@@ -27,28 +27,33 @@
 #include <glib.h>
 
 #include <girepository/girepository.h>
+#include "gibaseinfo-private.h"
 #include "girepository-private.h"
 #include "gitypelib-internal.h"
 #include "gipropertyinfo.h"
 
 /**
- * SECTION:gipropertyinfo
- * @title: GIPropertyInfo
- * @short_description: Struct representing a property
+ * GIPropertyInfo:
  *
- * GIPropertyInfo represents a property in a #GObject.
+ * `GIPropertyInfo` represents a property in a [class@GObject.Object].
  *
- * A property belongs to either a #GIObjectInfo or a #GIInterfaceInfo.
+ * A property belongs to either a [class@GIRepository.ObjectInfo] or a
+ * [class@GIRepository.InterfaceInfo].
+ *
+ * Since: 2.80
  */
 
 /**
  * gi_property_info_get_flags:
  * @info: a #GIPropertyInfo
  *
- * Obtain the flags for this property info. See #GParamFlags for
- * more information about possible flag values.
+ * Obtain the flags for this property info.
+ *
+ * See [type@GObject.ParamFlags] for more information about possible flag
+ * values.
  *
  * Returns: the flags
+ * Since: 2.80
  */
 GParamFlags
 gi_property_info_get_flags (GIPropertyInfo *info)
@@ -80,16 +85,17 @@ gi_property_info_get_flags (GIPropertyInfo *info)
 }
 
 /**
- * gi_property_info_get_type:
+ * gi_property_info_get_type_info:
  * @info: a #GIPropertyInfo
  *
  * Obtain the type information for the property @info.
  *
- * Returns: (transfer full): the #GITypeInfo, free it with
- *   gi_base_info_unref() when done.
+ * Returns: (transfer full): The [class@GIRepository.TypeInfo]. Free it with
+ *   [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GITypeInfo *
-gi_property_info_get_type (GIPropertyInfo *info)
+gi_property_info_get_type_info (GIPropertyInfo *info)
 {
   GIRealInfo *rinfo = (GIRealInfo *)info;
 
@@ -105,10 +111,12 @@ gi_property_info_get_type (GIPropertyInfo *info)
  * gi_property_info_get_ownership_transfer:
  * @info: a #GIPropertyInfo
  *
- * Obtain the ownership transfer for this property. See #GITransfer for more
- * information about transfer values.
+ * Obtain the ownership transfer for this property.
+ *
+ * See [type@GIRepository.Transfer] for more information about transfer values.
  *
  * Returns: the transfer
+ * Since: 2.80
  */
 GITransfer
 gi_property_info_get_ownership_transfer (GIPropertyInfo *info)
@@ -133,13 +141,14 @@ gi_property_info_get_ownership_transfer (GIPropertyInfo *info)
  * gi_property_info_get_setter:
  * @info: a #GIPropertyInfo
  *
- * Obtains the setter function associated with this #GIPropertyInfo.
+ * Obtains the setter function associated with this `GIPropertyInfo`.
  *
- * The setter is only available for %G_PARAM_WRITABLE properties that
- * are also not %G_PARAM_CONSTRUCT_ONLY.
+ * The setter is only available for `G_PARAM_WRITABLE` properties that
+ * are also not `G_PARAM_CONSTRUCT_ONLY`.
  *
- * Returns: (transfer full) (nullable): the function info or %NULL if not set.
- *   Free it with gi_base_info_unref() when done.
+ * Returns: (transfer full) (nullable): The function info, or `NULL` if not set.
+ *   Free it with [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIFunctionInfo *
 gi_property_info_get_setter (GIPropertyInfo *info)
@@ -160,7 +169,7 @@ gi_property_info_get_setter (GIPropertyInfo *info)
     return NULL;
 
   container = rinfo->container;
-  parent_type = gi_base_info_get_type (container);
+  parent_type = gi_base_info_get_info_type (container);
   if (parent_type == GI_INFO_TYPE_OBJECT)
     return gi_object_info_get_method ((GIObjectInfo *) container, blob->setter);
   else if (parent_type == GI_INFO_TYPE_INTERFACE)
@@ -173,12 +182,13 @@ gi_property_info_get_setter (GIPropertyInfo *info)
  * gi_property_info_get_getter:
  * @info: a #GIPropertyInfo
  *
- * Obtains the getter function associated with this #GIPropertyInfo.
+ * Obtains the getter function associated with this `GIPropertyInfo`.
  *
- * The setter is only available for %G_PARAM_READABLE properties.
+ * The setter is only available for `G_PARAM_READABLE` properties.
  *
- * Returns: (transfer full) (nullable): the function info or %NULL if not set.
- *   Free it with gi_base_info_unref() when done.
+ * Returns: (transfer full) (nullable): The function info, or `NULL` if not set.
+ *   Free it with [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIFunctionInfo *
 gi_property_info_get_getter (GIPropertyInfo *info)
@@ -199,11 +209,20 @@ gi_property_info_get_getter (GIPropertyInfo *info)
     return NULL;
 
   container = rinfo->container;
-  parent_type = gi_base_info_get_type (container);
+  parent_type = gi_base_info_get_info_type (container);
   if (parent_type == GI_INFO_TYPE_OBJECT)
     return gi_object_info_get_method ((GIObjectInfo *) container, blob->getter);
   else if (parent_type == GI_INFO_TYPE_INTERFACE)
     return gi_interface_info_get_method ((GIInterfaceInfo *) container, blob->getter);
   else
     return NULL;
+}
+
+void
+gi_property_info_class_init (gpointer g_class,
+                             gpointer class_data)
+{
+  GIBaseInfoClass *info_class = g_class;
+
+  info_class->info_type = GI_INFO_TYPE_PROPERTY;
 }

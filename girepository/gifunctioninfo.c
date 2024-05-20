@@ -29,36 +29,36 @@
 #include <glib.h>
 
 #include <girepository/girepository.h>
+#include "gibaseinfo-private.h"
 #include "girepository-private.h"
 #include "gitypelib-internal.h"
 #include "gifunctioninfo.h"
 
 /**
- * SECTION:gifunctioninfo
- * @title: GIFunctionInfo
- * @short_description: Struct representing a function
+ * GIFunctionInfo:
  *
- * GIFunctionInfo represents a function, method or constructor.
+ * `GIFunctionInfo` represents a function, method or constructor.
  *
- * To find out what kind of entity a #GIFunctionInfo represents, call
- * gi_function_info_get_flags().
+ * To find out what kind of entity a `GIFunctionInfo` represents, call
+ * [method@GIRepository.FunctionInfo.get_flags].
  *
- * See also #GICallableInfo for information on how to retreive arguments and
- * other metadata.
+ * See also [class@GIRepository.CallableInfo] for information on how to retrieve
+ * arguments and other metadata.
+ *
+ * Since: 2.80
  */
 
 GIFunctionInfo *
 gi_base_info_find_method (GIBaseInfo  *base,
                           guint32      offset,
-                          gint         n_methods,
+                          guint        n_methods,
                           const gchar *name)
 {
   /* FIXME hash */
   GIRealInfo *rinfo = (GIRealInfo*)base;
   Header *header = (Header *)rinfo->typelib->data;
-  gint i;
 
-  for (i = 0; i < n_methods; i++)
+  for (guint i = 0; i < n_methods; i++)
     {
       FunctionBlob *fblob = (FunctionBlob *)&rinfo->typelib->data[offset];
       const gchar *fname = (const gchar *)&rinfo->typelib->data[fblob->name];
@@ -77,11 +77,13 @@ gi_base_info_find_method (GIBaseInfo  *base,
  * gi_function_info_get_symbol:
  * @info: a #GIFunctionInfo
  *
- * Obtain the symbol of the function. The symbol is the name of the
- * exported function, suitable to be used as an argument to
- * g_module_symbol().
+ * Obtain the symbol of the function.
+ *
+ * The symbol is the name of the exported function, suitable to be used as an
+ * argument to [method@GModule.Module.symbol].
  *
  * Returns: the symbol
+ * Since: 2.80
  */
 const gchar *
 gi_function_info_get_symbol (GIFunctionInfo *info)
@@ -102,9 +104,10 @@ gi_function_info_get_symbol (GIFunctionInfo *info)
  * gi_function_info_get_flags:
  * @info: a #GIFunctionInfo
  *
- * Obtain the #GIFunctionInfoFlags for the @info.
+ * Obtain the [type@GIRepository.FunctionInfoFlags] for the @info.
  *
  * Returns: the flags
+ * Since: 2.80
  */
 GIFunctionInfoFlags
 gi_function_info_get_flags (GIFunctionInfo *info)
@@ -147,18 +150,20 @@ gi_function_info_get_flags (GIFunctionInfo *info)
  * gi_function_info_get_property:
  * @info: a #GIFunctionInfo
  *
- * Obtain the property associated with this #GIFunctionInfo.
- * Only #GIFunctionInfo with the flag %GI_FUNCTION_IS_GETTER or
- * %GI_FUNCTION_IS_SETTER have a property set. For other cases,
- * %NULL will be returned.
+ * Obtain the property associated with this `GIFunctionInfo`.
  *
- * Returns: (transfer full): the property or %NULL if not set. Free it with
- *   gi_base_info_unref() when done.
+ * Only `GIFunctionInfo`s with the flag `GI_FUNCTION_IS_GETTER` or
+ * `GI_FUNCTION_IS_SETTER` have a property set. For other cases,
+ * `NULL` will be returned.
+ *
+ * Returns: (transfer full) (nullable): The property or `NULL` if not set. Free
+ *   it with [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIPropertyInfo *
 gi_function_info_get_property (GIFunctionInfo *info)
 {
-  GIRealInfo *rinfo, *container_rinfo;
+  GIRealInfo *rinfo;
   FunctionBlob *blob;
 
   g_return_val_if_fail (info != NULL, NULL);
@@ -166,15 +171,14 @@ gi_function_info_get_property (GIFunctionInfo *info)
 
   rinfo = (GIRealInfo *)info;
   blob = (FunctionBlob *)&rinfo->typelib->data[rinfo->offset];
-  container_rinfo = (GIRealInfo *)rinfo->container;
 
-  if (container_rinfo->type == GI_INFO_TYPE_INTERFACE)
+  if (gi_base_info_get_info_type ((GIBaseInfo *) rinfo->container) == GI_INFO_TYPE_INTERFACE)
     {
       GIInterfaceInfo *container = (GIInterfaceInfo *)rinfo->container;
 
       return gi_interface_info_get_property (container, blob->index);
     }
-  else if (container_rinfo->type == GI_INFO_TYPE_OBJECT)
+  else if (gi_base_info_get_info_type ((GIBaseInfo *) rinfo->container) == GI_INFO_TYPE_OBJECT)
     {
       GIObjectInfo *container = (GIObjectInfo *)rinfo->container;
 
@@ -188,12 +192,14 @@ gi_function_info_get_property (GIFunctionInfo *info)
  * gi_function_info_get_vfunc:
  * @info: a #GIFunctionInfo
  *
- * Obtain the virtual function associated with this #GIFunctionInfo.
- * Only #GIFunctionInfo with the flag %GI_FUNCTION_WRAPS_VFUNC has
- * a virtual function set. For other cases, %NULL will be returned.
+ * Obtain the virtual function associated with this `GIFunctionInfo`.
  *
- * Returns: (transfer full): the virtual function or %NULL if not set.
- *   Free it by calling gi_base_info_unref() when done.
+ * Only `GIFunctionInfo`s with the flag `GI_FUNCTION_WRAPS_VFUNC` have
+ * a virtual function set. For other cases, `NULL` will be returned.
+ *
+ * Returns: (transfer full) (nullable): The virtual function or `NULL` if not
+ *   set. Free it by calling [method@GIRepository.BaseInfo.unref] when done.
+ * Since: 2.80
  */
 GIVFuncInfo *
 gi_function_info_get_vfunc (GIFunctionInfo *info)
@@ -215,9 +221,10 @@ gi_function_info_get_vfunc (GIFunctionInfo *info)
 /**
  * gi_invoke_error_quark:
  *
- * TODO
+ * Get the error quark which represents [type@GIRepository.InvokeError].
  *
- * Returns: TODO
+ * Returns: error quark
+ * Since: 2.80
  */
 GQuark
 gi_invoke_error_quark (void)
@@ -231,34 +238,37 @@ gi_invoke_error_quark (void)
 /**
  * gi_function_info_invoke: (skip)
  * @info: a #GIFunctionInfo describing the function to invoke
- * @in_args: (array length=n_in_args): an array of #GIArgument<!-- -->s, one for each in
- *    parameter of @info. If there are no in parameter, @in_args
- *    can be %NULL
+ * @in_args: (array length=n_in_args) (nullable): An array of
+ *   [type@GIRepository.Argument]s, one for each ‘in’ parameter of @info. If
+ *   there are no ‘in’ parameters, @in_args can be `NULL`.
  * @n_in_args: the length of the @in_args array
- * @out_args: (array length=n_out_args): an array of #GIArgument<!-- -->s, one for each out
- *    parameter of @info. If there are no out parameters, @out_args
- *    may be %NULL
+ * @out_args: (array length=n_out_args) (nullable): An array of
+ *   [type@GIRepository.Argument]s, one for each ‘out’ parameter of @info. If
+ *   there are no ‘out’ parameters, @out_args may be `NULL`.
  * @n_out_args: the length of the @out_args array
- * @return_value: return location for the return value of the
- *    function.
- * @error: return location for detailed error information, or %NULL
+ * @return_value: (out caller-allocates) (not optional): return location for the
+ *   return value of the function.
+ * @error: return location for detailed error information, or `NULL`
  *
  * Invokes the function described in @info with the given
- * arguments. Note that inout parameters must appear in both
- * argument lists. This function uses dlsym() to obtain a pointer
- * to the function, so the library or shared object containing the
- * described function must either be linked to the caller, or must
- * have been g_module_symbol()<!-- -->ed before calling this function.
+ * arguments.
  *
- * Returns: %TRUE if the function has been invoked, %FALSE if an
+ * Note that ‘inout’ parameters must appear in both argument lists. This
+ * function uses [`dlsym()`](man:dlsym(3)) to obtain a pointer to the function,
+ * so the library or shared object containing the described function must either
+ * be linked to the caller, or must have been loaded with
+ * [method@GModule.Module.symbol] before calling this function.
+ *
+ * Returns: `TRUE` if the function has been invoked, `FALSE` if an
  *   error occurred.
+ * Since: 2.80
  */
 gboolean
 gi_function_info_invoke (GIFunctionInfo    *info,
                          const GIArgument  *in_args,
-                         int                n_in_args,
+                         gsize              n_in_args,
                          const GIArgument  *out_args,
-                         int                n_out_args,
+                         gsize              n_out_args,
                          GIArgument        *return_value,
                          GError           **error)
 {
@@ -294,4 +304,13 @@ gi_function_info_invoke (GIFunctionInfo    *info,
                                   is_method,
                                   throws,
                                   error);
+}
+
+void
+gi_function_info_class_init (gpointer g_class,
+                             gpointer class_data)
+{
+  GIBaseInfoClass *info_class = g_class;
+
+  info_class->info_type = GI_INFO_TYPE_FUNCTION;
 }

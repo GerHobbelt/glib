@@ -1,7 +1,7 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*-
- * GObject introspection: Dump introspection data
+ * GObject introspection: Parsed GIR
  *
- * Copyright (C) 2013 Dieter Verfaillie <dieterv@optionexplicit.be>
+ * Copyright 2023 GNOME Foundation Inc.
  *
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -21,15 +21,31 @@
  * Boston, MA 02111-1307, USA.
  */
 
-/* This file collects documentation for macros, typedefs and
- * the like, which have no good home in any of the 'real' source
- * files.
- */
+#pragma once
 
-/**
- * SECTION:gicommontypes
- * @title: Common Types
- * @short_description: TODO
- *
- * TODO
- */
+#include <glib.h>
+#include <glib-object.h>
+
+#include "gitypes.h"
+
+G_BEGIN_DECLS
+
+#define GI_IS_BASE_INFO_TYPE(info,type) \
+  (G_TYPE_INSTANCE_GET_CLASS ((info), GI_TYPE_BASE_INFO, GIBaseInfoClass)->info_type == (type))
+
+struct _GIBaseInfoClass
+{
+  GTypeClass parent_class;
+
+  GIInfoType info_type;
+
+  void (* finalize) (GIBaseInfo *info);
+};
+
+void            gi_base_info_init_types              (void);
+
+GType           gi_base_info_type_register_static    (const char     *type_name,
+                                                      gsize           instance_size,
+                                                      GClassInitFunc  class_init);
+
+G_END_DECLS

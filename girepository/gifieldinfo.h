@@ -33,27 +33,28 @@
 G_BEGIN_DECLS
 
 /**
- * GI_IS_FIELD_INFO
+ * GI_IS_FIELD_INFO:
  * @info: an info structure
  *
- * Checks if @info is a #GIFieldInfo.
+ * Checks if @info is a [class@GIRepository.FieldInfo].
  *
+ * Since: 2.80
  */
 #define GI_IS_FIELD_INFO(info) \
-    (gi_base_info_get_type((GIBaseInfo*)info) ==  GI_INFO_TYPE_FIELD)
+    (gi_base_info_get_info_type ((GIBaseInfo*) info) ==  GI_INFO_TYPE_FIELD)
 
 
 GI_AVAILABLE_IN_ALL
 GIFieldInfoFlags       gi_field_info_get_flags      (GIFieldInfo *info);
 
 GI_AVAILABLE_IN_ALL
-gint                   gi_field_info_get_size       (GIFieldInfo *info);
+gsize                  gi_field_info_get_size       (GIFieldInfo *info);
 
 GI_AVAILABLE_IN_ALL
-gint                   gi_field_info_get_offset     (GIFieldInfo *info);
+gsize                  gi_field_info_get_offset     (GIFieldInfo *info);
 
 GI_AVAILABLE_IN_ALL
-GITypeInfo *           gi_field_info_get_type       (GIFieldInfo *info);
+GITypeInfo *           gi_field_info_get_type_info  (GIFieldInfo *info);
 
 GI_AVAILABLE_IN_ALL
 gboolean               gi_field_info_get_field      (GIFieldInfo *field_info,

@@ -33,68 +33,70 @@
 G_BEGIN_DECLS
 
 /**
- * GI_IS_INTERFACE_INFO
+ * GI_IS_INTERFACE_INFO:
  * @info: an info structure
  *
- * Checks if @info is a #GIInterfaceInfo.
+ * Checks if @info is a [class@GIRepository.InterfaceInfo].
+ *
+ * Since: 2.80
  */
 #define GI_IS_INTERFACE_INFO(info) \
-    (gi_base_info_get_type((GIBaseInfo*)info) ==  GI_INFO_TYPE_INTERFACE)
+    (gi_base_info_get_info_type ((GIBaseInfo*) info) ==  GI_INFO_TYPE_INTERFACE)
 
 
 GI_AVAILABLE_IN_ALL
-gint             gi_interface_info_get_n_prerequisites (GIInterfaceInfo *info);
+guint            gi_interface_info_get_n_prerequisites (GIInterfaceInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GIBaseInfo *     gi_interface_info_get_prerequisite    (GIInterfaceInfo *info,
-                                                        gint             n);
+                                                        guint            n);
 
 GI_AVAILABLE_IN_ALL
-gint             gi_interface_info_get_n_properties    (GIInterfaceInfo *info);
+guint            gi_interface_info_get_n_properties    (GIInterfaceInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GIPropertyInfo * gi_interface_info_get_property        (GIInterfaceInfo *info,
-                                                        gint             n);
+                                                        guint            n);
 
 GI_AVAILABLE_IN_ALL
-gint             gi_interface_info_get_n_methods       (GIInterfaceInfo *info);
+guint            gi_interface_info_get_n_methods       (GIInterfaceInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GIFunctionInfo * gi_interface_info_get_method          (GIInterfaceInfo *info,
-                                                        gint             n);
+                                                        guint            n);
 
 GI_AVAILABLE_IN_ALL
 GIFunctionInfo * gi_interface_info_find_method         (GIInterfaceInfo *info,
                                                         const gchar     *name);
 
 GI_AVAILABLE_IN_ALL
-gint             gi_interface_info_get_n_signals       (GIInterfaceInfo *info);
+guint            gi_interface_info_get_n_signals       (GIInterfaceInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GISignalInfo *   gi_interface_info_get_signal          (GIInterfaceInfo *info,
-                                                        gint             n);
+                                                        guint            n);
 
 GI_AVAILABLE_IN_ALL
 GISignalInfo *   gi_interface_info_find_signal         (GIInterfaceInfo *info,
                                                         const gchar     *name);
 
 GI_AVAILABLE_IN_ALL
-gint             gi_interface_info_get_n_vfuncs        (GIInterfaceInfo *info);
+guint            gi_interface_info_get_n_vfuncs        (GIInterfaceInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GIVFuncInfo *    gi_interface_info_get_vfunc           (GIInterfaceInfo *info,
-                                                        gint             n);
+                                                        guint            n);
 
 GI_AVAILABLE_IN_ALL
 GIVFuncInfo *    gi_interface_info_find_vfunc          (GIInterfaceInfo *info,
                                                         const gchar     *name);
 
 GI_AVAILABLE_IN_ALL
-gint             gi_interface_info_get_n_constants     (GIInterfaceInfo *info);
+guint            gi_interface_info_get_n_constants     (GIInterfaceInfo *info);
 
 GI_AVAILABLE_IN_ALL
 GIConstantInfo * gi_interface_info_get_constant        (GIInterfaceInfo *info,
-                                                        gint             n);
+                                                        guint            n);
 
 
 GI_AVAILABLE_IN_ALL

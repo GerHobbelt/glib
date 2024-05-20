@@ -33,23 +33,25 @@
 G_BEGIN_DECLS
 
 /**
- * GI_IS_CONSTANT_INFO
+ * GI_IS_CONSTANT_INFO:
  * @info: an info structure
  *
- * Checks if @info is a #GIConstantInfo.
+ * Checks if @info is a [class@GIRepository.ConstantInfo].
+ *
+ * Since: 2.80
  */
 #define GI_IS_CONSTANT_INFO(info) \
-    (gi_base_info_get_type((GIBaseInfo*)info) ==  GI_INFO_TYPE_CONSTANT)
+    (gi_base_info_get_info_type ((GIBaseInfo*) info) ==  GI_INFO_TYPE_CONSTANT)
 
 
 GI_AVAILABLE_IN_ALL
-GITypeInfo * gi_constant_info_get_type (GIConstantInfo *info);
+GITypeInfo * gi_constant_info_get_type_info (GIConstantInfo *info);
 
 GI_AVAILABLE_IN_ALL
 void         gi_constant_info_free_value (GIConstantInfo *info,
                                           GIArgument     *value);
 
 GI_AVAILABLE_IN_ALL
-gint         gi_constant_info_get_value (GIConstantInfo *info,
+gsize        gi_constant_info_get_value (GIConstantInfo *info,
                                          GIArgument     *value);
 G_END_DECLS
