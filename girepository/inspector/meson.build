@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2024 GNOME Foundation
 
 custom_c_args = [
-  '-DG_LOG_DOMAIN="GLib-GirCompiler"',  
+  '-DG_LOG_DOMAIN="GLib-GirInspector"',
 ]
 
 if cc.get_id() != 'msvc'
@@ -14,20 +14,11 @@ if cc.get_id() != 'msvc'
   ])
 endif
 
-gicompilerepository = executable('gi-compile-repository', 'compiler.c',
+giinspecttypelib = executable('gi-inspect-typelib', 'inspector.c',
   dependencies: [
     libgirepository_dep,
-    libgirepository_internals_dep,
     libgio_dep,
   ],
   install: true,
   c_args: custom_c_args,
 )
-
-# Only override the user-installed compiler if we need to generate the GIRs
-# GLib, Gio, and GObject...
-if enable_gir
-  # Replace the default g-ir-compiler target with the version we
-  # just built.
-  meson.override_find_program('g-ir-compiler', gicompilerepository)
-endif

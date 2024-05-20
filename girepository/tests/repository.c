@@ -96,7 +96,6 @@ test_repository_info (RepositoryFixture *fx,
   g_assert_true (GI_IS_REGISTERED_TYPE_INFO (object_info));
   g_assert_true (GI_IS_BASE_INFO (object_info));
 
-  g_assert_cmpint (gi_base_info_get_info_type (GI_BASE_INFO (object_info)), ==, GI_INFO_TYPE_OBJECT);
   g_assert_cmpstr (gi_base_info_get_name (GI_BASE_INFO (object_info)), ==, "Object");
   g_assert_cmpstr (gi_base_info_get_namespace (GI_BASE_INFO (object_info)), ==, "GObject");
 
@@ -233,21 +232,6 @@ test_repository_arg_info (RepositoryFixture *fx,
   g_clear_pointer (&arg_info, gi_base_info_unref);
   g_clear_pointer (&method_info, gi_base_info_unref);
   g_clear_pointer (&struct_info, gi_base_info_unref);
-}
-
-static void
-test_repository_boxed_info (RepositoryFixture *fx,
-                            const void *unused)
-{
-  GIBoxedInfo *boxed_info = NULL;
-
-  g_test_summary ("Test retrieving GIBoxedInfos from a typelib");
-
-  /* Test all the methods of GIBoxedInfo. This is simple, because there are none. */
-  boxed_info = GI_BOXED_INFO (gi_repository_find_by_name (fx->repository, "GObject", "BookmarkFile"));
-  g_assert_nonnull (boxed_info);
-
-  g_clear_pointer (&boxed_info, gi_base_info_unref);
 }
 
 static void
@@ -767,7 +751,6 @@ main (int   argc,
   ADD_REPOSITORY_TEST ("/repository/info", test_repository_info, &typelib_load_spec_gobject);
   ADD_REPOSITORY_TEST ("/repository/dependencies", test_repository_dependencies, &typelib_load_spec_gobject);
   ADD_REPOSITORY_TEST ("/repository/arg-info", test_repository_arg_info, &typelib_load_spec_gobject);
-  ADD_REPOSITORY_TEST ("/repository/boxed-info", test_repository_boxed_info, &typelib_load_spec_gobject);
   ADD_REPOSITORY_TEST ("/repository/callable-info", test_repository_callable_info, &typelib_load_spec_gobject);
   ADD_REPOSITORY_TEST ("/repository/callback-info", test_repository_callback_info, &typelib_load_spec_gobject);
   ADD_REPOSITORY_TEST ("/repository/char-types", test_repository_char_types, &typelib_load_spec_gobject);

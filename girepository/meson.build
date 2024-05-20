@@ -44,7 +44,6 @@ gi_visibility_h = custom_target(
 girepo_headers = files(
   'giarginfo.h',
   'gibaseinfo.h',
-  'giboxedinfo.h',
   'gicallableinfo.h',
   'gicallbackinfo.h',
   'giconstantinfo.h',
@@ -148,7 +147,6 @@ girepo_sources = files(
   'gdump.c',
   'giarginfo.c',
   'gibaseinfo.c',
-  'giboxedinfo.c',
   'gicallableinfo.c',
   'gicallbackinfo.c',
   'giconstantinfo.c',
@@ -207,6 +205,13 @@ libgirepository_dep = declare_dependency(
   dependencies: [libglib_dep, libgobject_dep, libgio_dep, libgmodule_dep],
   sources: [gi_visibility_h],
   include_directories: [girepoinc],
+  variables: {
+    # Export the path for the built GLib-2.0.typelib (etc.) for when GLib is
+    # used as a subproject. The variable names match those in
+    # pkgconfig_variables below.
+    'girdir': meson.current_build_dir() / 'introspection',
+    'typelibdir': meson.current_build_dir() / 'introspection',
+  },
 )
 
 executable('gi-dump-types',
@@ -243,3 +248,5 @@ if build_tests
 endif
 
 subdir('compiler')
+subdir('decompiler')
+subdir('inspector')

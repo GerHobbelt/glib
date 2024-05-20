@@ -49,8 +49,8 @@ your code if integer type warnings are enabled.
 | `g_arg_info_get_type` | [method@GIRepository.ArgInfo.get_type_info] |
 | `g_arg_info_load_type` | [method@GIRepository.ArgInfo.load_type_info] |
 | - | [method@GIRepository.BaseInfo.ref] and [method@GIRepository.BaseInfo.unref] |
-| `g_base_info_get_type` | [method@GIRepository.BaseInfo.get_info_type] |
-| `g_info_new` | [ctor@GIRepository.BaseInfo.new] |
+| `g_base_info_get_type` | Use type checking macros like [func@GIRepository.IS_OBJECT_INFO], or raw [type@GObject.Type]s with [func@GObject.TYPE_FROM_INSTANCE] |
+| `g_info_new` | Removed with no replacement, use [method@GIRepository.find_by_name] and related APIs |
 | `g_callable_info_invoke` arguments | `is_method` and `throws` dropped in [method@GIRepository.CallableInfo.invoke] |
 | `g_constant_info_get_type` | [method@GIRepository.ConstantInfo.get_type_info] |
 | `g_field_info_get_type` | [method@GIRepository.FieldInfo.get_type_info] |
@@ -67,6 +67,7 @@ your code if integer type warnings are enabled.
 | `g_irepository_get_search_path` and `g_irepository_get_library_path` | Now return arrays rather than linked lists |
 | `g_irepository_enumerate_versions` | Now returns an array rather than a linked list |
 | `g_irepository_get_immediate_dependencies`, `g_irepository_get_dependencies` and `g_irepository_get_loaded_namespaces` | Now additionally return a length argument |
+| `g_irepository_get_shared_library` | [method@GIRepository.get_shared_libraries] |
 | `g_irepository_dump` | Takes structured `input_filename` and `output_filename` arguments rather than a single formatted string |
 | `g_function_invoker_destroy` | `gi_function_invoker_clear()` |
 | `g_struct_info_get_copy_function` | [method@GIRepository.StructInfo.get_copy_function_name] |
@@ -79,3 +80,23 @@ your code if integer type warnings are enabled.
 | `g_union_info_get_discriminator_offset` | Split success and failure return values out into a new out-argument and return value |
 | `g_union_info_get_copy_function` | [method@GIRepository.UnionInfo.get_copy_function_name] |
 | `g_union_info_get_free_function` | [method@GIRepository.UnionInfo.get_free_function_name] |
+| `GIInfoType` | Use [type@GObject.Type] directly |
+| `GI_INFO_TYPE_BOXED` | Dropped in favour of [method@GIRepository.RegisteredTypeInfo.is_boxed] |
+
+## Utility program renames from version 1.0 to 2.0
+
+| girepository-1.0 | girepository-2.0        |
+|------------------|-------------------------|
+| `g-ir-compiler`  | `gi-compile-repository` |
+| `g-ir-generate`  | `gi-decompile-typelib`  |
+| `g-ir-inspect`   | `gi-inspect-typelib`    |
+
+In addition, some command-line options have been changed.
+
+The `--version` option for `g-ir-inspect` has been renamed to
+`--typelib-version` in `gi-inspect-typelib`.
+
+The `--includedir` option to `gi-decompile-typelib` treats the
+given directories as most-important-first, consistent with
+`gi-compile-repository --includedir` and `gcc -I`.
+`g-ir-generate` treated `--includedir` options as least-important-first.

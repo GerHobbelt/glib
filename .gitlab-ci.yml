@@ -175,6 +175,9 @@ fedora-x86_64:
   needs: []
   variables:
     CFLAGS: "-coverage -ftest-coverage -fprofile-arcs"
+  before_script:
+    - !reference [".build-linux", "before_script"]
+    - !reference [".with-git", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -198,9 +201,12 @@ fedora-x86_64:
     # can then pull it from there — see https://gitlab.gnome.org/GNOME/gtk/-/blob/docs-gtk-org/README.md
     - mkdir -p _reference/
     - mv _build/docs/reference/glib/glib/ _reference/glib/
+    - mv _build/docs/reference/glib/glib-unix/ _reference/glib-unix/
     - mv _build/docs/reference/gmodule/gmodule/ _reference/gmodule/
     - mv _build/docs/reference/gobject/gobject/ _reference/gobject/
     - mv _build/docs/reference/gio/gio/ _reference/gio/
+    - mv _build/docs/reference/gio/gio-unix/ _reference/gio-unix/
+    - mv _build/docs/reference/girepository/girepository/ _reference/girepository/
   artifacts:
     reports:
       junit:
@@ -224,6 +230,9 @@ debian-stable-x86_64:
   image: $DEBIAN_IMAGE
   stage: build
   needs: []
+  before_script:
+    - !reference [".build-linux", "before_script"]
+    - !reference [".with-git", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -293,6 +302,9 @@ muslc-alpine-x86_64:
   image: $ALPINE_IMAGE
   stage: build
   needs: []
+  before_script:
+    - !reference [".build-linux", "before_script"]
+    - !reference [".with-git", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -365,6 +377,9 @@ G_DISABLE_ASSERT:
   needs: []
   variables:
     MESON_TEST_TIMEOUT_MULTIPLIER: 15
+  before_script:
+    - !reference [".build-linux", "before_script"]
+    - !reference [".with-git", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -400,6 +415,9 @@ valgrind:
   needs: []
   variables:
     MESON_TEST_TIMEOUT_MULTIPLIER: 15
+  before_script:
+    - !reference [".build-linux", "before_script"]
+    - !reference [".with-git", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -475,7 +493,7 @@ cross-mingw64:
       - _build/gobject/libgobject-2.0-0.dll
 
 msys2-mingw32:
-  extends: .only-default
+  extends: .only-default-and-merges
   stage: build
   tags:
     - win32-ps
@@ -500,6 +518,7 @@ msys2-mingw32:
     paths:
       - _build/meson-logs
       - _coverage/
+      - _reference/
 
 msys2-clang64:
   extends: .only-schedules-or-manual
@@ -789,12 +808,14 @@ dist-job:
     - tar -c -J -f "gmodule-docs-$CI_COMMIT_TAG.tar.xz" -C _build/docs/reference/gmodule gmodule
     - tar -c -J -f "gobject-docs-$CI_COMMIT_TAG.tar.xz" -C _build/docs/reference/gobject gobject
     - tar -c -J -f "gio-docs-$CI_COMMIT_TAG.tar.xz" -C _build/docs/reference/gio gio
+    - tar -c -J -f "girepository-docs-$CI_COMMIT_TAG.tar.xz" -C _build/docs/reference/girepository girepository
   artifacts:
     paths:
       - "${CI_PROJECT_DIR}/_build/glib-docs-$CI_COMMIT_TAG.tar.xz"
       - "${CI_PROJECT_DIR}/_build/gmodule-docs-$CI_COMMIT_TAG.tar.xz"
       - "${CI_PROJECT_DIR}/_build/gobject-docs-$CI_COMMIT_TAG.tar.xz"
       - "${CI_PROJECT_DIR}/_build/gio-docs-$CI_COMMIT_TAG.tar.xz"
+      - "${CI_PROJECT_DIR}/_build/girepository-docs-$CI_COMMIT_TAG.tar.xz"
       - "${CI_PROJECT_DIR}/_build/meson-dist/glib-*.tar.xz"
 
 issue-bot:
