@@ -41,6 +41,7 @@ test_repository_basic (RepositoryFixture *fx,
 {
   const char * const * search_paths;
   char **namespaces = NULL;
+  size_t n_namespaces;
   const char *expected_namespaces[] = { "GLib", NULL };
   char **versions;
   size_t n_versions;
@@ -64,8 +65,9 @@ test_repository_basic (RepositoryFixture *fx,
   g_assert_cmpuint (g_strv_length ((char **) search_paths), >, 0);
   g_assert_cmpstr (search_paths[0], ==, fx->gobject_typelib_dir);
 
-  namespaces = gi_repository_get_loaded_namespaces (fx->repository);
+  namespaces = gi_repository_get_loaded_namespaces (fx->repository, &n_namespaces);
   g_assert_cmpstrv (namespaces, expected_namespaces);
+  g_assert_cmpuint (n_namespaces, ==, g_strv_length ((char **) expected_namespaces));
   g_strfreev (namespaces);
 
   prefix = gi_repository_get_c_prefix (fx->repository, "GLib");
@@ -90,6 +92,9 @@ test_repository_info (RepositoryFixture *fx,
 
   object_info = GI_OBJECT_INFO (gi_repository_find_by_name (fx->repository, "GObject", "Object"));
   g_assert_nonnull (object_info);
+  g_assert_true (GI_IS_OBJECT_INFO (object_info));
+  g_assert_true (GI_IS_REGISTERED_TYPE_INFO (object_info));
+  g_assert_true (GI_IS_BASE_INFO (object_info));
 
   g_assert_cmpint (gi_base_info_get_info_type (GI_BASE_INFO (object_info)), ==, GI_INFO_TYPE_OBJECT);
   g_assert_cmpstr (gi_base_info_get_name (GI_BASE_INFO (object_info)), ==, "Object");
@@ -103,6 +108,9 @@ test_repository_info (RepositoryFixture *fx,
 
   signal_info = gi_object_info_find_signal (object_info, "notify");
   g_assert_nonnull (signal_info);
+  g_assert_true (GI_IS_SIGNAL_INFO (signal_info));
+  g_assert_true (GI_IS_CALLABLE_INFO (signal_info));
+  g_assert_true (GI_IS_BASE_INFO (signal_info));
 
   g_assert_cmpint (gi_signal_info_get_flags (signal_info), ==,
                    G_SIGNAL_RUN_FIRST | G_SIGNAL_NO_RECURSE | G_SIGNAL_DETAILED | G_SIGNAL_NO_HOOKS | G_SIGNAL_ACTION);
@@ -111,6 +119,10 @@ test_repository_info (RepositoryFixture *fx,
 
   method_info = gi_object_info_find_method (object_info, "get_property");
   g_assert_nonnull (method_info);
+  g_assert_true (GI_IS_FUNCTION_INFO (method_info));
+  g_assert_true (GI_IS_CALLABLE_INFO (method_info));
+  g_assert_true (GI_IS_BASE_INFO (method_info));
+
   g_assert_true (gi_callable_info_is_method (GI_CALLABLE_INFO (method_info)));
   g_assert_cmpuint (gi_callable_info_get_n_args (GI_CALLABLE_INFO (method_info)), ==, 2);
   g_clear_pointer (&method_info, gi_base_info_unref);
@@ -132,11 +144,13 @@ test_repository_dependencies (RepositoryFixture *fx,
 {
   GError *error = NULL;
   char **dependencies;
+  size_t n_dependencies;
 
   g_test_summary ("Test ensures namespace dependencies are correctly exposed");
 
-  dependencies = gi_repository_get_dependencies (fx->repository, "GObject");
+  dependencies = gi_repository_get_dependencies (fx->repository, "GObject", &n_dependencies);
   g_assert_cmpuint (g_strv_length (dependencies), ==, 1);
+  g_assert_cmpuint (n_dependencies, ==, 1);
   g_assert_true (g_strv_contains ((const char **) dependencies, "GLib-2.0"));
 
   g_clear_error (&error);
@@ -152,6 +166,7 @@ test_repository_arg_info (RepositoryFixture *fx,
   GIFunctionInfo *method_info = NULL;
   GIArgInfo *arg_info = NULL;
   GITypeInfo *type_info = NULL;
+  GITypeInfo type_info_stack;
   unsigned int idx;
 
   g_test_summary ("Test retrieving GIArgInfos from a typelib");
@@ -188,7 +203,13 @@ test_repository_arg_info (RepositoryFixture *fx,
   g_assert_true (gi_type_info_is_pointer (type_info));
   g_assert_cmpint (gi_type_info_get_tag (type_info), ==, GI_TYPE_TAG_UTF8);
 
+  gi_arg_info_load_type_info (arg_info, &type_info_stack);
+  g_assert_true (gi_type_info_is_pointer (&type_info_stack) == gi_type_info_is_pointer (type_info));
+  g_assert_cmpint (gi_type_info_get_tag (&type_info_stack), ==, gi_type_info_get_tag (type_info));
+
+  gi_base_info_clear (&type_info_stack);
   g_clear_pointer (&type_info, gi_base_info_unref);
+
   g_clear_pointer (&arg_info, gi_base_info_unref);
   g_clear_pointer (&method_info, gi_base_info_unref);
   g_clear_pointer (&object_info, gi_base_info_unref);
@@ -237,9 +258,11 @@ test_repository_callable_info (RepositoryFixture *fx,
   GIFunctionInfo *method_info = NULL;
   GICallableInfo *callable_info;
   GITypeInfo *type_info = NULL;
+  GITypeInfo type_info_stack;
   GIAttributeIter iter = GI_ATTRIBUTE_ITER_INIT;
   const char *name, *value;
   GIArgInfo *arg_info = NULL;
+  GIArgInfo arg_info_stack;
 
   g_test_summary ("Test retrieving GICallableInfos from a typelib");
 
@@ -260,6 +283,12 @@ test_repository_callable_info (RepositoryFixture *fx,
   g_assert_nonnull (type_info);
   g_assert_true (gi_type_info_is_pointer (type_info));
   g_assert_cmpint (gi_type_info_get_tag (type_info), ==, GI_TYPE_TAG_VOID);
+
+  gi_callable_info_load_return_type (callable_info, &type_info_stack);
+  g_assert_true (gi_type_info_is_pointer (&type_info_stack) == gi_type_info_is_pointer (type_info));
+  g_assert_cmpint (gi_type_info_get_tag (&type_info_stack), ==, gi_type_info_get_tag (type_info));
+
+  gi_base_info_clear (&type_info_stack);
   g_clear_pointer (&type_info, gi_base_info_unref);
 
   /* This method has no attributes */
@@ -275,6 +304,12 @@ test_repository_callable_info (RepositoryFixture *fx,
 
   arg_info = gi_callable_info_get_arg (callable_info, 0);
   g_assert_nonnull (arg_info);
+
+  gi_callable_info_load_arg (callable_info, 0, &arg_info_stack);
+  g_assert_cmpint (gi_arg_info_get_direction (&arg_info_stack), ==, gi_arg_info_get_direction (arg_info));
+  g_assert_true (gi_arg_info_may_be_null (&arg_info_stack) == gi_arg_info_may_be_null (arg_info));
+
+  gi_base_info_clear (&arg_info_stack);
   g_clear_pointer (&arg_info, gi_base_info_unref);
 
   g_assert_cmpint (gi_callable_info_get_instance_ownership_transfer (callable_info), ==, GI_TRANSFER_NOTHING);

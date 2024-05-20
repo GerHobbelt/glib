@@ -1283,7 +1283,7 @@ write_union_info (const char *ns,
       size_t offset;
       GITypeInfo *type;
 
-      offset = gi_union_info_get_discriminator_offset (info);
+      gi_union_info_get_discriminator_offset (info, &offset);
       type = gi_union_info_get_discriminator_type (info);
 
       xml_start_element (file, "discriminator");
@@ -1373,7 +1373,7 @@ gi_ir_writer_write (const char *filename,
               "            xmlns:c=\"http://www.gtk.org/introspection/c/1.0\"\n"
               "            xmlns:glib=\"http://www.gtk.org/introspection/glib/1.0\"");
 
-  dependencies = gi_repository_get_immediate_dependencies (repository, ns);
+  dependencies = gi_repository_get_immediate_dependencies (repository, ns, NULL);
   if (dependencies != NULL)
     {
       for (i = 0; dependencies[i]; i++)

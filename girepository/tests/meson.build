@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# SPDX-FileCopyrightText: 2024 GNOME Foundation
+
 girepository_tests = {
   'cmph-bdz': {
     'dependencies': [cmph_dep],
@@ -14,6 +17,9 @@ if enable_gir
       'dependencies': [libffi_dep],
       'depends': [glib_gir],
     },
+    'object-info' : {
+      'depends': [gio_gir],
+    },
     'repository' : {
       'depends': [glib_gir, gio_gir, gobject_gir],
     },
@@ -26,6 +32,9 @@ if enable_gir
     },
     'throws' : {
       'depends': [glib_gir, gio_gir],
+    },
+    'union-info' : {
+      'depends': [glib_gir],
     },
   }
 endif
