@@ -64,7 +64,12 @@ gio_tests = {
     # FIXME: https://gitlab.gnome.org/GNOME/glib/-/issues/1392 / https://gitlab.gnome.org/GNOME/glib/-/issues/1251
     'can_fail' : host_system == 'darwin',
   },
-  'converter-stream' : {},
+  'converter-stream' : {
+    # musl: charset tests fail due to missing collation support in musl libc
+    # From https://wiki.musl-libc.org/roadmap#Open_future_goals
+    # "LC_COLLATE support for collation orders other than simple codepoint order"
+    'can_fail' : linux_libc == 'musl',
+  },
   'credentials' : {},
   'data-input-stream' : {},
   'data-output-stream' : {},
@@ -180,6 +185,10 @@ python_tests = {
     'can_fail' : host_system == 'freebsd',
     'suite': ['gdbus-codegen', 'slow'],
     'timeout': 90,
+  },
+  'gio-tool.py' : {
+    'depends' : gio_tool,
+    'can_fail' : host_system == 'windows',
   },
 }
 
@@ -373,6 +382,7 @@ if host_machine.system() != 'windows'
         output :  ['gdbus-test-codegen-generated.h',
                    'gdbus-test-codegen-generated.c'],
         depend_files : gdbus_codegen_built_files,
+        depends : gdbus_codegen_built_targets,
         command : [python, gdbus_codegen,
                    '--interface-prefix', 'org.project.',
                    '--output-directory', '@OUTDIR@',
@@ -389,6 +399,7 @@ if host_machine.system() != 'windows'
         output :  ['gdbus-test-codegen-generated-min-required-2-64.h',
                    'gdbus-test-codegen-generated-min-required-2-64.c'],
         depend_files : gdbus_codegen_built_files,
+        depends : gdbus_codegen_built_targets,
         command : [python, gdbus_codegen,
                    '--glib-min-required', '2.64',
                    '--interface-prefix', 'org.project.',
@@ -405,6 +416,7 @@ if host_machine.system() != 'windows'
           input :   ['test-codegen.xml'],
           output :  ['gdbus-test-codegen-generated-interface-info.h'],
           depend_files : gdbus_codegen_built_files,
+          depends : gdbus_codegen_built_targets,
           command : [python, gdbus_codegen,
                      '--interface-info-header',
                      annotate_args,
@@ -414,6 +426,7 @@ if host_machine.system() != 'windows'
           input :   ['test-codegen.xml'],
           output :  ['gdbus-test-codegen-generated-interface-info.c'],
           depend_files : gdbus_codegen_built_files,
+          depends : gdbus_codegen_built_targets,
           command : [python, gdbus_codegen,
                      '--interface-info-body',
                      annotate_args,
@@ -528,6 +541,7 @@ if host_machine.system() != 'windows'
         output :  ['fake-document-portal-generated.h',
                    'fake-document-portal-generated.c'],
         depend_files : gdbus_codegen_built_files,
+        depends : gdbus_codegen_built_targets,
         command : [python, gdbus_codegen,
                    '--interface-prefix', 'org.freedesktop.portal.',
                    '--output-directory', '@OUTDIR@',
@@ -810,8 +824,12 @@ if not meson.is_cross_build()
     output : ['gresource-big-test.txt'],
     command : [python, '@INPUT0@', '@OUTPUT@'])
 
+  # referenced by test.gresource.xml
+  test_generated_txt = fs.copyfile('test1.txt', 'test-generated.txt')
+
   test_gresource = custom_target('test.gresource',
     input : 'test.gresource.xml',
+    depends : test_generated_txt,
     output : 'test.gresource',
     command : [glib_compile_resources,
                compiler_type,
@@ -888,9 +906,6 @@ if not meson.is_cross_build()
                '--generate',
                '--manual-register',
                '@INPUT@'])
-
-  # referenced by test.gresource.xml
-  test_generated_txt = fs.copyfile('test1.txt', 'test-generated.txt')
 
   resources_extra_sources = [
     test_gresource,
@@ -982,7 +997,9 @@ if not meson.is_cross_build()
   gio_tests += {
     'resources' : {
       'extra_sources' : resources_extra_sources,
-      'depends' : [resource_plugin, test_generated_txt],
+      'depends' : resource_plugin,
+      # FIXME: musl: https://gitlab.gnome.org/GNOME/glib/-/issues/3160
+      'can_fail' : linux_libc == 'musl',
     },
   }
 endif
@@ -1073,6 +1090,7 @@ endforeach
 foreach test_name, extra_args : python_tests
   depends = [extra_args.get('depends', [])]
   suite = ['gio', 'no-valgrind'] + extra_args.get('suite', [])
+  timeout = extra_args.get('timeout', test_timeout)
 
   if extra_args.get('can_fail', false)
     suite += 'failing'
@@ -1089,7 +1107,7 @@ foreach test_name, extra_args : python_tests
     depends: depends,
     args: ['-B', files(test_name)],
     env: test_env,
-    timeout: extra_args.get('timeout'),
+    timeout: timeout,
     suite: suite,
   )
 

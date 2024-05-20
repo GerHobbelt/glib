@@ -31,14 +31,6 @@
 #endif
 
 /**
- * SECTION:gioerror
- * @short_description: Error helper functions
- * @include: gio/gio.h
- *
- * Contains helper functions for reporting errors to the user.
- **/
-
-/**
  * g_io_error_quark:
  *
  * Gets the GIO Error Quark.
@@ -225,6 +217,12 @@ g_io_error_from_errno (gint err_no)
 #ifdef ENOTCONN
     case ENOTCONN:
       return G_IO_ERROR_NOT_CONNECTED;
+      break;
+#endif
+
+#ifdef EDESTADDRREQ
+    case EDESTADDRREQ:
+      return G_IO_ERROR_DESTINATION_UNSET;
       break;
 #endif
 

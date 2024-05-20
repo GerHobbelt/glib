@@ -65,6 +65,17 @@ if host_system == 'darwin'
   endif
 endif
 
+linux_libc = ''
+if host_system == 'linux'
+  musl_test_code = '''#include <stdlib.h>
+  #if defined __GLIBC__ || defined __UCLIBC__
+  #error "Not in glibc or uclibc"
+  #endif'''
+  if cc.compiles(musl_test_code, name : 'building for musl libc')
+    linux_libc = 'musl'
+  endif
+endif
+
 glib_version = meson.project_version()
 glib_api_version = '2.0'
 version_arr = glib_version.split('.')
@@ -87,6 +98,7 @@ glibinc = include_directories('glib')
 gobjectinc = include_directories('gobject')
 gmoduleinc = include_directories('gmodule')
 gioinc = include_directories('gio')
+girepoinc = include_directories('girepository')
 
 glib_prefix = get_option('prefix')
 glib_bindir = join_paths(glib_prefix, get_option('bindir'))
@@ -363,6 +375,7 @@ headers = [
   'fstab.h',
   'grp.h',
   'inttypes.h',
+  'libproc.h',
   'limits.h',
   'locale.h',
   'mach/mach_time.h',
@@ -2482,6 +2495,7 @@ subdir('gobject')
 subdir('gthread')
 subdir('gmodule')
 subdir('gio')
+subdir('girepository')
 subdir('fuzzing')
 
 # xgettext is optional (on Windows for instance)
@@ -2546,6 +2560,12 @@ if build_machine.system() != host_system
     'build cpu' : build_machine.cpu_family(),
     'build endian' : build_machine.endian(),
     'build system' : build_machine.system(),
+  }, section: 'Build environment')
+endif
+
+if linux_libc != ''
+  summary({
+    'linux_libc' : linux_libc
   }, section: 'Build environment')
 endif
 

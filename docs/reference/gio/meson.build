@@ -225,11 +225,23 @@ endif
 
 # gi-docgen version
 expand_content_files = [
+  'dbus-error.md',
+  'dbus-introspection.md',
+  'dbus-name-owning.md',
+  'dbus-name-watching.md',
+  'dbus-utils.md',
+  'error.md',
   'file-attributes.md',
+  'io-scheduler.md',
+  'menu-exporter.md',
   'migrating-gconf.md',
   'migrating-gdbus.md',
   'migrating-gnome-vfs.md',
+  'networking.md',
   'overview.md',
+  'pollable-utils.md',
+  'tls-overview.md',
+  'unix-mounts.md',
 ]
 
 gio_toml = configure_file(input: 'gio.toml.in', output: 'gio.toml', configuration: toml_conf)
@@ -244,8 +256,9 @@ custom_target('gio-docs',
     '--config=@INPUT0@',
     '--output-dir=@OUTPUT@',
     '--content-dir=@0@'.format(meson.current_source_dir()),
-    '--add-include-path=@0@'.format(meson.current_source_dir() / '../glib'),
-    '--add-include-path=@0@'.format(meson.current_source_dir() / '../gobject'),
+    '--add-include-path=@0@'.format(meson.current_build_dir() / '../../../gobject'),
+    '--add-include-path=@0@'.format(meson.current_build_dir() / '../../../gmodule'),
+    '--add-include-path=@0@'.format(meson.current_build_dir() / '../../../gio'),
     '@INPUT1@',
   ],
   build_by_default: true,

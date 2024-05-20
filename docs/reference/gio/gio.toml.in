@@ -42,10 +42,27 @@ urlmap_file = "urlmap.js"
 content_files = [
   "overview.md",
   "file-attributes.md",
+  "tls-overview.md",
+
+  "error.md",
+
+  "pollable-utils.md",
+  "unix-mounts.md",
+
+  "dbus-error.md",
+  "dbus-introspection.md",
+  "dbus-name-owning.md",
+  "dbus-name-watching.md",
+  "dbus-utils.md",
+  "menu-exporter.md",
+
+  "networking.md",
 
   "migrating-gdbus.md",
   "migrating-gconf.md",
   "migrating-gnome-vfs.md",
+
+  "io-scheduler.md",
 ]
 content_images = [
   "gvfs-overview.png",
