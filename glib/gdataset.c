@@ -69,13 +69,13 @@
 
 /* datalist pointer accesses have to be carried out atomically */
 #define G_DATALIST_GET_POINTER(datalist)						\
-  ((GData*) ((guintptr) g_atomic_pointer_get (datalist) & ~(gsize) G_DATALIST_FLAGS_MASK_INTERNAL))
+  ((GData *) ((gpointer) ((guintptr) g_atomic_pointer_get (datalist) & ~((guintptr) G_DATALIST_FLAGS_MASK_INTERNAL))))
 
 #define G_DATALIST_SET_POINTER(datalist, pointer)       G_STMT_START {                           \
   gpointer _oldv = g_atomic_pointer_get (datalist);                                              \
   gpointer _newv;                                                                                \
   do {                                                                                           \
-    _newv = (gpointer) (((gsize) _oldv & G_DATALIST_FLAGS_MASK_INTERNAL) | (guintptr) pointer);  \
+    _newv = (gpointer) (((guintptr) _oldv & ((guintptr) G_DATALIST_FLAGS_MASK_INTERNAL)) | (guintptr) pointer); \
   } while (!g_atomic_pointer_compare_and_exchange_full ((void**) datalist, _oldv,                \
                                                         _newv, &_oldv));                         \
 } G_STMT_END
@@ -104,7 +104,6 @@ struct _GDataset
 
 /* --- prototypes --- */
 static inline GDataset*	g_dataset_lookup		(gconstpointer	  dataset_location);
-static inline void	g_datalist_clear_i		(GData		**datalist);
 static void		g_dataset_destroy_internal	(GDataset	 *dataset);
 static inline gpointer	g_data_set_internal		(GData     	**datalist,
 							 GQuark   	  key_id,
@@ -134,10 +133,11 @@ static GDataset     *g_dataset_cached = NULL; /* should this be
 
 #define DATALIST_LOCK_BIT 2
 
-static void
-g_datalist_lock (GData **datalist)
+G_ALWAYS_INLINE static inline GData *
+g_datalist_lock_and_get (GData **datalist)
 {
-  g_pointer_bit_lock ((void **)datalist, DATALIST_LOCK_BIT);
+  g_pointer_bit_lock ((void **) datalist, DATALIST_LOCK_BIT);
+  return G_DATALIST_GET_POINTER (datalist);
 }
 
 static void
@@ -146,31 +146,10 @@ g_datalist_unlock (GData **datalist)
   g_pointer_bit_unlock ((void **)datalist, DATALIST_LOCK_BIT);
 }
 
-/* Called with the datalist lock held, or the dataset global
- * lock for dataset lists
- */
 static void
-g_datalist_clear_i (GData **datalist)
+g_datalist_unlock_and_set (GData **datalist, gpointer ptr)
 {
-  GData *data;
-  guint i;
-
-  data = G_DATALIST_GET_POINTER (datalist);
-  G_DATALIST_SET_POINTER (datalist, NULL);
-
-  if (data)
-    {
-      G_UNLOCK (g_dataset_global);
-      for (i = 0; i < data->len; i++)
-        {
-          if (data->data[i].data && data->data[i].destroy)
-            data->data[i].destroy (data->data[i].data);
-        }
-      G_LOCK (g_dataset_global);
-
-      g_free (data);
-    }
-
+  g_pointer_bit_unlock_and_set ((void **) datalist, DATALIST_LOCK_BIT, ptr, G_DATALIST_FLAGS_MASK_INTERNAL);
 }
 
 /**
@@ -189,12 +168,8 @@ g_datalist_clear (GData **datalist)
 
   g_return_if_fail (datalist != NULL);
 
-  g_datalist_lock (datalist);
-
-  data = G_DATALIST_GET_POINTER (datalist);
-  G_DATALIST_SET_POINTER (datalist, NULL);
-
-  g_datalist_unlock (datalist);
+  data = g_datalist_lock_and_get (datalist);
+  g_datalist_unlock_and_set (datalist, NULL);
 
   if (data)
     {
@@ -233,7 +208,12 @@ g_dataset_destroy_internal (GDataset *dataset)
   dataset_location = dataset->location;
   while (dataset)
     {
-      if (G_DATALIST_GET_POINTER(&dataset->datalist) == NULL)
+      GData *data;
+      guint i;
+
+      data = G_DATALIST_GET_POINTER (&dataset->datalist);
+
+      if (!data)
 	{
 	  if (dataset == g_dataset_cached)
 	    g_dataset_cached = NULL;
@@ -241,8 +221,19 @@ g_dataset_destroy_internal (GDataset *dataset)
 	  g_slice_free (GDataset, dataset);
 	  break;
 	}
-      
-      g_datalist_clear_i (&dataset->datalist);
+
+      G_DATALIST_SET_POINTER (&dataset->datalist, NULL);
+
+      G_UNLOCK (g_dataset_global);
+
+      for (i = 0; i < data->len; i++)
+        {
+          if (data->data[i].data && data->data[i].destroy)
+            data->data[i].destroy (data->data[i].data);
+        }
+      g_free (data);
+
+      G_LOCK (g_dataset_global);
       dataset = g_dataset_lookup (dataset_location);
     }
 }
@@ -280,11 +271,10 @@ g_data_set_internal (GData	  **datalist,
 		     GDataset	   *dataset)
 {
   GData *d, *old_d;
+  GData *new_d = NULL;
   GDataElt old, *data, *data_last, *data_end;
 
-  g_datalist_lock (datalist);
-
-  d = G_DATALIST_GET_POINTER (datalist);
+  d = g_datalist_lock_and_get (datalist);
 
   if (new_data == NULL) /* remove */
     {
@@ -306,12 +296,12 @@ g_data_set_internal (GData	  **datalist,
                    */
 		  if (d->len == 0)
 		    {
-		      G_DATALIST_SET_POINTER (datalist, NULL);
-		      g_free (d);
 		      /* datalist may be situated in dataset, so must not be
-		       * unlocked after we free it
+		       * unlocked when we free it
 		       */
-		      g_datalist_unlock (datalist);
+		      g_datalist_unlock_and_set (datalist, NULL);
+
+		      g_free (d);
 
 		      /* the dataset destruction *must* be done
 		       * prior to invocation of the data destroy function
@@ -402,7 +392,7 @@ g_data_set_internal (GData	  **datalist,
 	  d = g_realloc (d, sizeof (GData) + (d->alloc - 1) * sizeof (GDataElt));
 	}
       if (old_d != d)
-	G_DATALIST_SET_POINTER (datalist, d);
+	new_d = d;
 
       d->data[d->len].key = key_id;
       d->data[d->len].data = new_data;
@@ -410,7 +400,10 @@ g_data_set_internal (GData	  **datalist,
       d->len++;
     }
 
-  g_datalist_unlock (datalist);
+  if (new_d)
+    g_datalist_unlock_and_set (datalist, new_d);
+  else
+    g_datalist_unlock (datalist);
 
   return NULL;
 
@@ -422,87 +415,104 @@ g_data_remove_internal (GData  **datalist,
                         gsize    n_keys)
 {
   GData *d;
+  GDataElt *old;
+  GDataElt *old_to_free = NULL;
+  GDataElt *data;
+  GDataElt *data_end;
+  gsize found_keys;
+  gboolean free_d = FALSE;
 
-  g_datalist_lock (datalist);
+  d = g_datalist_lock_and_get (datalist);
 
-  d = G_DATALIST_GET_POINTER (datalist);
-
-  if (d)
+  if (!d)
     {
-      GDataElt *old, *data, *data_end;
-      gsize found_keys;
+      g_datalist_unlock (datalist);
+      return;
+    }
 
-      /* Allocate an array of GDataElt to hold copies of the elements
-       * that are removed from the datalist. Allow enough space for all
-       * the keys; if a key is not found, the corresponding element of
-       * old is not populated, so we initialize them all to NULL to
-       * detect that case. */
-      old = g_newa0 (GDataElt, n_keys);
+  /* Allocate an array of GDataElt to hold copies of the elements
+   * that are removed from the datalist. Allow enough space for all
+   * the keys; if a key is not found, the corresponding element of
+   * old is not populated, so we initialize them all to NULL to
+   * detect that case.
+   *
+   * At most allocate 400 bytes on the stack. Especially since we call
+   * out to external code, we don't know how much stack we can use. */
+  if (n_keys <= 400u / sizeof (GDataElt))
+    old = g_newa0 (GDataElt, n_keys);
+  else
+    {
+      old_to_free = g_new0 (GDataElt, n_keys);
+      old = old_to_free;
+    }
 
-      data = d->data;
-      data_end = data + d->len;
-      found_keys = 0;
+  data = d->data;
+  data_end = data + d->len;
+  found_keys = 0;
 
-      while (data < data_end && found_keys < n_keys)
+  while (data < data_end && found_keys < n_keys)
+    {
+      gboolean remove = FALSE;
+
+      for (gsize i = 0; i < n_keys; i++)
         {
-          gboolean remove = FALSE;
-
-          for (gsize i = 0; i < n_keys; i++)
+          if (data->key == keys[i])
             {
-              if (data->key == keys[i])
-                {
-                  old[i] = *data;
-                  remove = TRUE;
-                  break;
-                }
-            }
-
-          if (remove)
-            {
-              GDataElt *data_last = data_end - 1;
-
-              found_keys++;
-
-              if (data < data_last)
-                *data = *data_last;
-
-              data_end--;
-              d->len--;
-
-              /* We don't bother to shrink, but if all data are now gone
-               * we at least free the memory
-               */
-              if (d->len == 0)
-                {
-                  G_DATALIST_SET_POINTER (datalist, NULL);
-                  g_free (d);
-                  break;
-                }
-            }
-          else
-            {
-              data++;
+              old[i] = *data;
+              remove = TRUE;
+              break;
             }
         }
 
-      if (found_keys > 0)
+      if (remove)
         {
-          g_datalist_unlock (datalist);
+          GDataElt *data_last = data_end - 1;
 
-          for (gsize i = 0; i < n_keys; i++)
+          found_keys++;
+
+          if (data < data_last)
+            *data = *data_last;
+
+          data_end--;
+          d->len--;
+
+          /* We don't bother to shrink, but if all data are now gone
+           * we at least free the memory
+           */
+          if (d->len == 0)
             {
-              /* If keys[i] was not found, then old[i].destroy is NULL.
-               * Call old[i].destroy() only if keys[i] was found, and
-               * is associated with a destroy notifier: */
-              if (old[i].destroy)
-                old[i].destroy (old[i].data);
+              free_d = TRUE;
+              break;
             }
-
-          return;
+        }
+      else
+        {
+          data++;
         }
     }
 
-  g_datalist_unlock (datalist);
+  if (free_d)
+    {
+      g_datalist_unlock_and_set (datalist, NULL);
+      g_free (d);
+    }
+  else
+    g_datalist_unlock (datalist);
+
+  if (found_keys > 0)
+    {
+      for (gsize i = 0; i < n_keys; i++)
+        {
+          /* If keys[i] was not found, then old[i].destroy is NULL.
+           * Call old[i].destroy() only if keys[i] was found, and
+           * is associated with a destroy notifier: */
+          if (old[i].destroy)
+            old[i].destroy (old[i].data);
+        }
+    }
+
+  if (G_UNLIKELY (old_to_free))
+    g_free (old_to_free);
 }
 
 /**
@@ -897,9 +907,7 @@ g_datalist_id_dup_data (GData          **datalist,
   GData *d;
   GDataElt *data, *data_end;
 
-  g_datalist_lock (datalist);
-
-  d = G_DATALIST_GET_POINTER (datalist);
+  d = g_datalist_lock_and_get (datalist);
   if (d)
     {
       data = d->data;
@@ -964,7 +972,10 @@ g_datalist_id_replace_data (GData          **datalist,
 {
   gpointer val = NULL;
   GData *d;
+  GData *new_d = NULL;
   GDataElt *data, *data_end;
+  gboolean free_d = FALSE;
+  gboolean set_new_d = FALSE;
 
   g_return_val_if_fail (datalist != NULL, FALSE);
   g_return_val_if_fail (key_id != 0, FALSE);
@@ -972,9 +983,7 @@ g_datalist_id_replace_data (GData          **datalist,
   if (old_destroy)
     *old_destroy = NULL;
 
-  g_datalist_lock (datalist);
-
-  d = G_DATALIST_GET_POINTER (datalist);
+  d = g_datalist_lock_and_get (datalist);
   if (d)
     {
       data = d->data;
@@ -1004,8 +1013,8 @@ g_datalist_id_replace_data (GData          **datalist,
                       */
                      if (d->len == 0)
                        {
-                         G_DATALIST_SET_POINTER (datalist, NULL);
-                         g_free (d);
+                         set_new_d = TRUE;
+                         free_d = TRUE;
                        }
                    }
                 }
@@ -1033,7 +1042,10 @@ g_datalist_id_replace_data (GData          **datalist,
           d = g_realloc (d, sizeof (GData) + (d->alloc - 1) * sizeof (GDataElt));
         }
       if (old_d != d)
-        G_DATALIST_SET_POINTER (datalist, d);
+        {
+          new_d = d;
+          set_new_d = TRUE;
+        }
 
       d->data[d->len].key = key_id;
       d->data[d->len].data = newval;
@@ -1041,7 +1053,13 @@ g_datalist_id_replace_data (GData          **datalist,
       d->len++;
     }
 
-  g_datalist_unlock (datalist);
+  if (set_new_d)
+    g_datalist_unlock_and_set (datalist, new_d);
+  else
+    g_datalist_unlock (datalist);
+
+  if (free_d)
+    g_free (d);
 
   return val == oldval;
 }
@@ -1067,9 +1085,7 @@ g_datalist_get_data (GData	 **datalist,
 
   g_return_val_if_fail (datalist != NULL, NULL);
 
-  g_datalist_lock (datalist);
-
-  d = G_DATALIST_GET_POINTER (datalist);
+  d = g_datalist_lock_and_get (datalist);
   if (d)
     {
       data = d->data;
