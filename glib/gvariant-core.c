@@ -76,6 +76,11 @@ struct _GVariant
   gatomicrefcount ref_count;
   gsize depth;
 
+#if GLIB_SIZEOF_VOID_P == 4
+  /* Keep suffix aligned to 8 bytes */
+  guint _padding;
+#endif
+
   guint8 suffix[];
 };
 
