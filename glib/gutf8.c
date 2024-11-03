@@ -40,6 +40,11 @@
 #include "gtypes.h"
 #include "gthread.h"
 #include "glibintl.h"
+#include "gvalgrind.h"
+
+#if g_macro__has_attribute(ifunc) && !defined(G_OS_WIN32)
+#define HAVE_WORKING_IFUNC_ATTRIBUTE 1
+#endif
 
 #define UTF8_COMPUTE(Char, Mask, Len)					      \
   if (Char < 128)							      \
@@ -1824,6 +1829,77 @@ out:
     *lenp = len;
 }
 
+static gboolean
+g_utf8_validate_native (const char  *str,
+                        gssize       max_len,
+                        const char **end)
+{
+  if (max_len >= 0)
+    return g_utf8_validate_len (str, max_len, end);
+
+  utf8_verify (&str, NULL);
+
+  if (end != NULL)
+    *end = str;
+
+  return *str == 0;
+}
+
+#ifdef HAVE_WORKING_IFUNC_ATTRIBUTE
+/* The fast implementation of UTF-8 validation in `utf8_verify()` technically
+ * uses undefined behaviour when the string length is not provided (i.e. when
+ * it’s looking for a trailing nul terminator): when doing word-sized reads of
+ * the string, it can read up to the word size (minus one byte) beyond the end
+ * of the string in order to find the nul terminator.
+ *
+ * While this is guaranteed to not cause a page fault (at worst, the nul
+ * terminator could be in the final word of the page, and the code won’t read
+ * any further than that), it is still technically undefined behaviour in C,
+ * because we’re reading off the end of an array.
+ *
+ * We don’t *think* this can cause any bugs due to compiler optimisations,
+ * because glibc does exactly the same thing in its string handling code, and
+ * that code has been extensively tested. For example:
+ * https://github.com/bminor/glibc/blob/2c1903cbbac0022153a67776f474c221250ad6ed/string/strchrnul.c
+ *
+ * However, both valgrind and asan warn about the read beyond the end of the
+ * array (a ‘heap buffer overflow read’). They’re right to do this (they can’t
+ * know the read is bounded to the word size minus one, and guaranteed to not
+ * cross a page boundary), but it’s annoying for any application which calls
+ * `g_utf8_validate()`.
+ *
+ * Use an [indirect function (`ifunc`)](https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-ifunc-function-attribute)
+ * to use a fallback implementation of `g_utf8_validate()` when running under
+ * valgrind. This is resolved at load time using `resolve_g_utf8_validate()`.
+ *
+ * Similarly, mark the real implementation so that it’s not instrumented by asan
+ * using `no_sanitize_address`.
+ */
+static gboolean
+g_utf8_validate_valgrind (const char  *str,
+                          gssize       max_len,
+                          const char **end)
+{
+  if (max_len < 0)
+    max_len = strlen (str);
+
+  return g_utf8_validate_len (str, max_len, end);
+}
+
+typedef gboolean (*GUtf8ValidateFunc) (const char  *str,
+                                       gssize       max_len,
+                                       const char **end);
+
+static GUtf8ValidateFunc
+resolve_g_utf8_validate (void)
+{
+  if (RUNNING_ON_VALGRIND)
+    return g_utf8_validate_valgrind;
+  else
+    return g_utf8_validate_native;
+}
+#endif  /* HAVE_WORKING_IFUNC_ATTRIBUTE */
+
 /**
  * g_utf8_validate:
  * @str: (array length=max_len) (element-type guint8): a pointer to character data
@@ -1850,22 +1926,20 @@ out:
  * 
  * Returns: `TRUE` if the text was valid UTF-8
  */
+#if g_macro__has_attribute(no_sanitize_address)
+  __attribute__((no_sanitize_address))
+#endif
 gboolean
 g_utf8_validate (const char   *str,
-		 gssize        max_len,    
-		 const gchar **end)
-
+                 gssize        max_len,
+                 const gchar **end)
+#ifdef HAVE_WORKING_IFUNC_ATTRIBUTE
+  __attribute__((ifunc ("resolve_g_utf8_validate")));
+#else
 {
-  if (max_len >= 0)
-    return g_utf8_validate_len (str, max_len, end);
-
-  utf8_verify (&str, NULL);
-
-  if (end != NULL)
-    *end = str;
-
-  return *str == 0;
+  return g_utf8_validate_native (str, max_len, end);
 }
+#endif
 
 /**
  * g_utf8_validate_len:
@@ -1895,6 +1969,38 @@ g_utf8_validate_len (const char   *str,
   return max_len == 0;
 }
 
+static gboolean
+g_str_is_ascii_native (const char *str)
+{
+  utf8_verify_ascii (&str, NULL);
+
+  return *str == 0;
+}
+
+#ifdef HAVE_WORKING_IFUNC_ATTRIBUTE
+/* See above comment about `ifunc` use for g_utf8_validate(). */
+static gboolean
+g_str_is_ascii_valgrind (const char *str)
+{
+  size_t len = strlen (str);
+
+  utf8_verify_ascii (&str, &len);
+
+  return *str == 0;
+}
+
+typedef gboolean (*GStrIsAsciiFunc) (const char *str);
+
+static GStrIsAsciiFunc
+resolve_g_str_is_ascii (void)
+{
+  if (RUNNING_ON_VALGRIND)
+    return g_str_is_ascii_valgrind;
+  else
+    return g_str_is_ascii_native;
+}
+#endif  /* HAVE_WORKING_IFUNC_ATTRIBUTE */
+
 /**
  * g_str_is_ascii:
  * @str: a string
@@ -1906,13 +2012,18 @@ g_utf8_validate_len (const char   *str,
  *
  * Since: 2.40
  */
+#if g_macro__has_attribute(no_sanitize_address)
+  __attribute__((no_sanitize_address))
+#endif
 gboolean
 g_str_is_ascii (const gchar *str)
+#ifdef HAVE_WORKING_IFUNC_ATTRIBUTE
+  __attribute__((ifunc ("resolve_g_str_is_ascii")));
+#else
 {
-  utf8_verify_ascii (&str, NULL);
-
-  return *str == 0;
+  return g_str_is_ascii_native (str);
 }
+#endif
 
 /**
  * g_unichar_validate:
