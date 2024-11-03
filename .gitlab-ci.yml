@@ -11,11 +11,12 @@ cache:
     - _ccache/
 
 variables:
-  FEDORA_IMAGE: "registry.gitlab.gnome.org/gnome/glib/fedora:v27"
+  FEDORA_IMAGE: "registry.gitlab.gnome.org/gnome/glib/fedora:v39.1"
   COVERITY_IMAGE: "registry.gitlab.gnome.org/gnome/glib/coverity:v7"
   DEBIAN_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable:v19"
   ALPINE_IMAGE: "registry.gitlab.gnome.org/gnome/glib/alpine:v3"
-  MINGW_IMAGE: "registry.gitlab.gnome.org/gnome/glib/mingw:v16"
+  MINGW_IMAGE: "registry.gitlab.gnome.org/gnome/glib/mingw:v39.1"
+  GOBJECT_INTROSPECTION_TAG: "1.80.1"
   MESON_TEST_TIMEOUT_MULTIPLIER: 4
   G_MESSAGES_DEBUG: all
   MESON_COMMON_OPTIONS: "--buildtype debug --wrap-mode=nodownload --fatal-meson-warnings"
@@ -105,6 +106,17 @@ variables:
       when: manual
       allow_failure: true
 
+.build-gobject-introspection:
+  before_script:
+    - mkdir -p gobject-introspection
+    - git clone --branch $GOBJECT_INTROSPECTION_TAG https://gitlab.gnome.org/GNOME/gobject-introspection.git gobject-introspection
+    - meson gobject-introspection gobject-introspection/build --prefix=/usr
+    - sudo meson install -C gobject-introspection/build
+  artifacts:
+    expire_in: 3 days
+    paths:
+      - gobject-introspection
+
 .build-linux:
   before_script:
     - bash .gitlab-ci/show-execution-environment.sh
@@ -167,6 +179,7 @@ style-check-mandatory:
 
 fedora-x86_64:
   extends:
+    - .build-gobject-introspection
     - .build-linux
     - .only-default-and-merges
     - .with-git
@@ -174,10 +187,12 @@ fedora-x86_64:
   stage: build
   needs: []
   variables:
-    CFLAGS: "-coverage -ftest-coverage -fprofile-arcs"
+    CFLAGS: "--coverage -ftest-coverage -fprofile-arcs -fprofile-update=atomic"
+    CXXFLAGS: "--coverage -ftest-coverage -fprofile-arcs -fprofile-update=atomic"
   before_script:
     - !reference [".build-linux", "before_script"]
     - !reference [".with-git", "before_script"]
+    - !reference [".build-gobject-introspection", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -194,9 +209,11 @@ fedora-x86_64:
             _build
     - meson compile -C _build
     - mkdir -p _coverage
-    - lcov --config-file .lcovrc --directory _build --capture --initial --output-file "_coverage/${CI_JOB_NAME}-baseline.lcov"
+    - lcov --config-file .lcovrc --directory _build --capture --initial
+      --output-file "_coverage/${CI_JOB_NAME}-baseline.lcov"
     - .gitlab-ci/run-tests.sh
-    - lcov --config-file .lcovrc --directory _build --capture --output-file "_coverage/${CI_JOB_NAME}.lcov"
+    - lcov --config-file .lcovrc --directory _build --capture
+      --output-file "_coverage/${CI_JOB_NAME}.lcov"
     # Copy the built documentation to an artifact directory. The build for docs.gtk.org
     # can then pull it from there — see https://gitlab.gnome.org/GNOME/gtk/-/blob/docs-gtk-org/README.md
     - mkdir -p _reference/
@@ -371,6 +388,7 @@ G_DISABLE_ASSERT:
     - .build-linux
     - .only-schedules-or-manual
     - .with-git
+    - .build-gobject-introspection
   image: $FEDORA_IMAGE
   stage: build
   needs: []
@@ -379,6 +397,7 @@ G_DISABLE_ASSERT:
   before_script:
     - !reference [".build-linux", "before_script"]
     - !reference [".with-git", "before_script"]
+    - !reference [".build-gobject-introspection", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -409,6 +428,7 @@ valgrind:
     - .build-linux
     - .only-schedules-or-manual
     - .with-git
+    - .build-gobject-introspection
   image: $FEDORA_IMAGE
   stage: analysis
   needs: []
@@ -417,6 +437,7 @@ valgrind:
   before_script:
     - !reference [".build-linux", "before_script"]
     - !reference [".with-git", "before_script"]
+    - !reference [".build-gobject-introspection", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -518,6 +539,7 @@ msys2-mingw32:
     CHERE_INVOKING: "yes"
     CFLAGS: -coverage -ftest-coverage -fprofile-arcs
     PYTHONUTF8: "1"
+    G_DEBUGGER: 'gdb.exe -batch -ex "set logging enabled on" -ex "attach %p" -ex "signal-event %e" -ex "c" -ex "thread apply all bt full" -ex "k"'
   script:
     - C:\msys64\usr\bin\pacman --noconfirm -Syyuu --ask 20
     - C:\msys64\usr\bin\bash .gitlab-ci/show-execution-environment.sh
@@ -532,6 +554,7 @@ msys2-mingw32:
     expire_in: 1 week
     paths:
       - _build/meson-logs
+      - _build/gdb.txt
       - _coverage/
       - _reference/
 
@@ -743,6 +766,7 @@ scan-build:
   extends:
     - .build-linux
     - .only-schedules-or-manual
+    - .build-gobject-introspection
   image: $FEDORA_IMAGE
   stage: analysis
   needs: []
@@ -763,6 +787,8 @@ scan-build:
       --exclude gio/xdgmime/
       -disable-checker deadcode.DeadStores
       --status-bugs
+  before_script:
+    - !reference [".build-gobject-introspection", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
@@ -788,12 +814,15 @@ scan-build:
   extends:
     - .build-linux
     - .only-schedules-or-manual-in-default-branch
+    - .build-gobject-introspection
   image: $COVERITY_IMAGE
   stage: analysis
   needs: []
   variables:
     # cov-build doesn’t like GLIB_DEPRECATED_ENUMERATOR
     CFLAGS: '-DGLIB_DISABLE_DEPRECATION_WARNINGS'
+  before_script:
+    - !reference [".build-gobject-introspection", "before_script"]
   script:
     - meson setup ${MESON_COMMON_OPTIONS}
             --werror
