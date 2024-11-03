@@ -14,7 +14,7 @@ fs = import('fs')
 cc = meson.get_compiler('c')
 c_standards = {}
 
-foreach std : ['90', '99', '11', '17']
+foreach std : ['89', '99', '11', '17']
   arg = (cc.get_id() == 'msvc' ? '/std:' : '-std=') + 'c' + std
   if cc.has_argument(arg)
     c_standards += { std: arg }
@@ -236,8 +236,16 @@ if host_system == 'qnx'
   add_project_arguments('-D_QNX_SOURCE', language: 'c')
 endif
 
+# dummy/empty dependency() object to declare fallbacks and simpler dependencies
+not_found = dependency('', required: false)
+
+get_dll_paths_script = not_found
+
 if host_system == 'windows'
   add_project_arguments(['-DUNICODE', '-D_UNICODE'], language: 'c')
+
+  # Script to obtain paths where the DLLs that we will reside for g-ir-scanner
+  get_dll_paths_script = find_program('tools/grab-gio-dll-paths.py', native: true)
 endif
 
 # Disable strict aliasing;
@@ -245,9 +253,6 @@ endif
 if cc.has_argument('-fno-strict-aliasing')
   add_project_arguments('-fno-strict-aliasing', language: 'c')
 endif
-
-# dummy/empty dependency() object to declare fallbacks and simpler dependencies
-not_found = dependency('', required: false)
 
 ########################
 # Configuration begins #
@@ -385,6 +390,7 @@ headers = [
   'dirent.h', # MSC does not come with this by default
   'float.h',
   'fstab.h',
+  'ftw.h',
   'grp.h',
   'inttypes.h',
   'libproc.h',
@@ -579,6 +585,10 @@ if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
     '-Werror=missing-prototypes',
     '-Werror=pointer-sign',
     '-Wno-string-plus-int',
+    # We require a compiler that supports C11 even though it's not yet a
+    # strict requirement, so allow typedef redefinition not to break clang and
+    # older gcc versions.
+    '-Wno-typedef-redefinition',
   ]
   warning_cxx_args = warning_common_args
   warning_objc_args = warning_c_args
@@ -2647,8 +2657,10 @@ if rst2man.found()
   rst2man_flags = [
     '--syntax-highlight=none',
   ]
-  man1_dir = join_paths(glib_prefix, get_option('mandir'), 'man1')
+  man1_dir = glib_prefix / get_option('mandir') / 'man1'
 endif
+
+rst2html5 = find_program('rst2html5', 'rst2html5.py', required: get_option('documentation'))
 
 gnome = import('gnome')
 subdir('docs/reference')
