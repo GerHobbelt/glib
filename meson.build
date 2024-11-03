@@ -1,11 +1,11 @@
 project('glib', 'c',
   version : '2.83.0',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
-  meson_version : '>= 1.2.0',
+  meson_version : '>= 1.4.0',
   default_options : [
     'buildtype=debugoptimized',
     'warning_level=3',
-    'c_std=gnu99'
+    'c_std=gnu99,c99'
   ]
 )
 
@@ -222,8 +222,7 @@ if valgrind.found()
       '--num-callers=50',
       '--show-leak-kinds=definite,possible',
       '--show-error-list=yes',
-      '--suppressions=@0@'.format(meson.project_source_root() /
-        '@0@'.format(valgrind_suppression_file)),
+      '--suppressions=' + valgrind_suppression_file.full_path(),
     ],
     env: common_test_env,
     timeout_multiplier: 20,
@@ -551,6 +550,7 @@ endforeach
 if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
   warning_common_args = [
     '-Wduplicated-branches',
+    '-Wfloat-conversion',
     '-Wimplicit-fallthrough',
     '-Wmisleading-indentation',
     '-Wmissing-field-initializers',
@@ -2240,7 +2240,7 @@ else
 endif
 
 # Import the gvdb sources as a subproject to avoid having the copylib in-tree
-subproject('gvdb')
+subproject('gvdb', default_options: {'tests': false})
 gvdb_dep = dependency('gvdb')
 
 libm = cc.find_library('m', required : false)
