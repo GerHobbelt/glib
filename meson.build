@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.83.3',
+  version : '2.83.4',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 1.4.0',
   default_options : [
@@ -2487,8 +2487,16 @@ glib_conf.set('HAVE_PROC_SELF_CMDLINE', have_proc_self_cmdline)
 
 python = import('python').find_installation()
 
+# Sets the shebang on script files. This has been changed many times including
+# using env, the absolute path to the Python executable, and using both python
+# and python3 names. Please review the history here, prior to suggesting
+# further changes: https://gitlab.gnome.org/GNOME/glib/-/merge_requests/4391
+python_shebang = '/usr/bin/env python3'
+
 python_version = python.language_version()
 python_version_req = '>=3.7'
+python_test_libraries_path = meson.project_source_root() / 'tests' / 'lib'
+assert(fs.exists(python_test_libraries_path))
 if not python_version.version_compare(python_version_req)
   error('Requires Python @0@, @1@ found.'.format(python_version_req, python_version))
 endif
