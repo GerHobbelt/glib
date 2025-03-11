@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.83.2',
+  version : '2.83.3',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 1.4.0',
   default_options : [
@@ -24,6 +24,17 @@ foreach std : ['89', '99', '11', '17']
     c_standards += { std: arg }
   endif
 endforeach
+
+# In the 2.85 cycle, this soft-dependency on C11 will become a hard dependency.
+# If this is a problem on your toolchain or platform, please file an issue
+# (https://gitlab.gnome.org/GNOME/glib/-/issues) and let us know. We have very
+# few metrics on the toolchains which are used to build GLib.
+if '11' not in c_standards
+  warning('Toolchain support for C11 will become a requirement for building ' +
+          'GLib in the next unstable development series (2.85). If this is ' +
+          'problematic for you, please file an issue ' +
+          '(https://gitlab.gnome.org/GNOME/glib/-/issues) now')
+endif
 
 have_cxx = add_languages('cpp', native: false, required: get_option('oss_fuzz').enabled())
 if have_cxx
@@ -435,6 +446,7 @@ headers = [
   'sys/time.h', # MSC does not come with this by default
   'sys/times.h',
   'sys/types.h',
+  'sys/ucred.h',
   'sys/uio.h',
   'sys/vfs.h',
   'sys/vfstab.h',
@@ -698,6 +710,7 @@ functions = [
   'ftruncate64',
   'getauxval',
   'getc_unlocked',
+  'getfsent',
   'getfsstat',
   'getgrgid_r',
   'getmntent_r',
