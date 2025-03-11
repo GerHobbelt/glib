@@ -748,7 +748,7 @@ gboolean
  * g_once_init_leave:
  * @location: (inout) (not optional): location of a static initializable variable
  *    containing 0
- * @result: new non-0 value for *@value_location
+ * @result: new non-0 value for `*value_location`
  *
  * Counterpart to g_once_init_enter(). Expects a location of a static
  * 0-initialized initialization variable, and an initialization value
@@ -882,12 +882,10 @@ g_thread_proxy (gpointer data)
   TRACE (GLIB_THREAD_SPAWNED (thread->thread.func, thread->thread.data,
                               thread->name));
 
-  if (thread->name)
-    {
-      g_system_thread_set_name (thread->name);
-      g_free (thread->name);
-      thread->name = NULL;
-    }
+  if (thread->name[0] != '\0')
+    g_system_thread_set_name (thread->name);
+  else
+    g_system_thread_get_name (thread->name, sizeof (thread->name));
 
   thread->retval = thread->thread.func (thread->thread.data);
 
@@ -1104,6 +1102,26 @@ g_thread_self (void)
     }
 
   return (GThread*) thread;
+}
+
+/**
+ * g_thread_get_name:
+ * @thread: a thread
+ *
+ * Gets the name of the thread.
+ *
+ * This function is intended for debugging purposes.
+ *
+ * Returns: the name of the thread
+ *
+ * Since: 2.84
+ */
+const char *
+g_thread_get_name (GThread *thread)
+{
+  GRealThread *real = (GRealThread*) thread;
+
+  return real->name;
 }
 
 /**
