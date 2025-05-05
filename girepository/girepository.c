@@ -140,8 +140,6 @@ G_DEFINE_TYPE (GIRepository, gi_repository, G_TYPE_OBJECT);
 
 static HMODULE girepository_dll = NULL;
 
-#ifdef DLL_EXPORT
-
 BOOL WINAPI DllMain (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved);
 
 BOOL WINAPI
@@ -155,7 +153,6 @@ DllMain (HINSTANCE hinstDLL,
   return TRUE;
 }
 
-#endif /* DLL_EXPORT */
 #endif /* G_PLATFORM_WIN32 */
 
 #ifdef __APPLE__
@@ -607,7 +604,8 @@ load_dependencies_recurse (GIRepository *repository,
           const char *dependency_version;
 
           last_dash = strrchr (dependency, '-');
-          dependency_namespace = g_strndup (dependency, last_dash - dependency);
+          g_assert (last_dash != NULL);  /* get_typelib_dependencies() guarantees this */
+          dependency_namespace = g_strndup (dependency, (size_t) (last_dash - dependency));
           dependency_version = last_dash+1;
 
           if (!gi_repository_require (repository, dependency_namespace, dependency_version,
@@ -785,7 +783,8 @@ get_typelib_dependencies_transitive (GIRepository *repository,
 
       /* Recurse for this namespace. */
       last_dash = strrchr (dependency, '-');
-      dependency_namespace = g_strndup (dependency, last_dash - dependency);
+      g_assert (last_dash != NULL);  /* get_typelib_dependencies() guarantees this */
+      dependency_namespace = g_strndup (dependency, (size_t) (last_dash - dependency));
 
       typelib = get_registered (repository, dependency_namespace, NULL);
       g_return_if_fail (typelib != NULL);
@@ -976,12 +975,12 @@ gi_repository_get_n_infos (GIRepository *repository,
   GITypelib *typelib;
   unsigned int n_interfaces = 0;
 
-  g_return_val_if_fail (GI_IS_REPOSITORY (repository), -1);
-  g_return_val_if_fail (namespace != NULL, -1);
+  g_return_val_if_fail (GI_IS_REPOSITORY (repository), 0);
+  g_return_val_if_fail (namespace != NULL, 0);
 
   typelib = get_registered (repository, namespace, NULL);
 
-  g_return_val_if_fail (typelib != NULL, -1);
+  g_return_val_if_fail (typelib != NULL, 0);
 
   n_interfaces = ((Header *)typelib->data)->n_local_entries;
 
@@ -1742,7 +1741,12 @@ enumerate_namespace_versions (const char         *namespace,
 
               name_end = strrchr (entry, '.');
               last_dash = strrchr (entry, '-');
-              version = g_strndup (last_dash+1, name_end-(last_dash+1));
+
+              /* These are guaranteed by the suffix and prefix checks above: */
+              g_assert (name_end != NULL);
+              g_assert (last_dash != NULL);
+
+              version = g_strndup (last_dash + 1, (size_t) (name_end - (last_dash + 1u)));
               if (!parse_version (version, &major, &minor))
                 {
                   g_free (version);
