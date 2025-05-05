@@ -1,5 +1,5 @@
 project('glib', 'c',
-  version : '2.84.1',
+  version : '2.85.0',
   # NOTE: See the policy in docs/meson-version.md before changing the Meson dependency
   meson_version : '>= 1.4.0',
   default_options : [
@@ -715,6 +715,7 @@ functions = [
   'getfsent',
   'getfsstat',
   'getgrgid_r',
+  'getifaddrs',
   'getmntent_r',
   'getpwuid_r',
   'getresuid',

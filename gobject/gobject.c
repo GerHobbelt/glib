@@ -124,10 +124,8 @@ enum {
  * parallel as possible. The alternative would be to add individual locking
  * integers to GObjectPrivate. But increasing memory usage for more parallelism
  * (per-object!) is not worth it. */
-#define OPTIONAL_BIT_LOCK_WEAK_REFS      1
-#define OPTIONAL_BIT_LOCK_NOTIFY         2
-#define OPTIONAL_BIT_LOCK_TOGGLE_REFS    3
-#define OPTIONAL_BIT_LOCK_CLOSURE_ARRAY  4
+#define OPTIONAL_BIT_LOCK_NOTIFY 1
+#define OPTIONAL_BIT_LOCK_TOGGLE_REFS 2
 
 #if SIZEOF_INT == 4 && GLIB_SIZEOF_VOID_P >= 8
 #define HAVE_OPTIONAL_FLAGS_IN_GOBJECT 1
@@ -205,6 +203,7 @@ static gchar*	g_value_object_lcopy_value		(const GValue	*value,
 static void	g_object_dispatch_properties_changed	(GObject	*object,
 							 guint		 n_pspecs,
 							 GParamSpec    **pspecs);
+static void closure_array_destroy_all (GObject *object);
 static guint               object_floating_flag_handler (GObject        *object,
                                                          gint            job);
 static inline void object_set_optional_flags (GObject *object,
@@ -1776,7 +1775,7 @@ g_object_real_dispose (GObject *object)
 
   /* GWeakNotify and GClosure can call into user code */
   g_datalist_id_set_data (&object->qdata, quark_weak_notifies, NULL);
-  g_datalist_id_set_data (&object->qdata, quark_closure_array, NULL);
+  closure_array_destroy_all (object);
 }
 
 static gboolean
@@ -3672,6 +3671,40 @@ weak_refs_notify (gpointer data)
   g_free (wstack);
 }
 
+static gpointer
+g_object_weak_ref_cb (gpointer *data,
+                      GDestroyNotify *destroy_notify,
+                      gpointer user_data)
+{
+  GObject *object = ((gpointer *) user_data)[0];
+  GWeakNotify notify = ((gpointer *) user_data)[1];
+  gpointer notify_data = ((gpointer *) user_data)[2];
+  WeakRefStack *wstack = *data;
+  guint i;
+
+  if (!wstack)
+    {
+      wstack = g_new (WeakRefStack, 1);
+      wstack->object = object;
+      wstack->n_weak_refs = 1;
+      i = 0;
+
+      *destroy_notify = weak_refs_notify;
+    }
+  else
+    {
+      i = wstack->n_weak_refs++;
+      wstack = g_realloc (wstack, sizeof (*wstack) + sizeof (wstack->weak_refs[0]) * i);
+    }
+
+  *data = wstack;
+
+  wstack->weak_refs[i].notify = notify;
+  wstack->weak_refs[i].data = notify_data;
+
+  return NULL;
+}
+
 /**
  * g_object_weak_ref: (skip)
  * @object: #GObject to reference weakly
@@ -3694,31 +3727,53 @@ g_object_weak_ref (GObject    *object,
 		   GWeakNotify notify,
 		   gpointer    data)
 {
-  WeakRefStack *wstack;
-  guint i;
-  
   g_return_if_fail (G_IS_OBJECT (object));
   g_return_if_fail (notify != NULL);
   g_return_if_fail (g_atomic_int_get (&object->ref_count) >= 1);
 
-  object_bit_lock (object, OPTIONAL_BIT_LOCK_WEAK_REFS);
-  wstack = g_datalist_id_remove_no_notify (&object->qdata, quark_weak_notifies);
+  _g_datalist_id_update_atomic (&object->qdata,
+                                quark_weak_notifies,
+                                g_object_weak_ref_cb,
+                                ((gpointer[]){ object, notify, data }));
+}
+
+static gpointer
+g_object_weak_unref_cb (gpointer *data,
+                        GDestroyNotify *destroy_notify,
+                        gpointer user_data)
+{
+  GWeakNotify notify = ((gpointer *) user_data)[0];
+  gpointer notify_data = ((gpointer *) user_data)[1];
+  WeakRefStack *wstack = *data;
+  gboolean found_one = FALSE;
+  guint i;
+
   if (wstack)
     {
-      i = wstack->n_weak_refs++;
-      wstack = g_realloc (wstack, sizeof (*wstack) + sizeof (wstack->weak_refs[0]) * i);
+      for (i = 0; i < wstack->n_weak_refs; i++)
+        {
+          if (wstack->weak_refs[i].notify != notify ||
+              wstack->weak_refs[i].data != notify_data)
+            continue;
+
+          wstack->n_weak_refs -= 1;
+          if (wstack->n_weak_refs == 0)
+            {
+              g_free (wstack);
+              *data = NULL;
+            }
+          else if (i != wstack->n_weak_refs)
+            wstack->weak_refs[i] = wstack->weak_refs[wstack->n_weak_refs];
+
+          found_one = TRUE;
+          break;
+        }
     }
-  else
-    {
-      wstack = g_renew (WeakRefStack, NULL, 1);
-      wstack->object = object;
-      wstack->n_weak_refs = 1;
-      i = 0;
-    }
-  wstack->weak_refs[i].notify = notify;
-  wstack->weak_refs[i].data = data;
-  g_datalist_id_set_data_full (&object->qdata, quark_weak_notifies, wstack, weak_refs_notify);
-  object_bit_unlock (object, OPTIONAL_BIT_LOCK_WEAK_REFS);
+
+  if (!found_one)
+    g_critical ("%s: couldn't find weak ref %p(%p)", G_STRFUNC, notify, notify_data);
+
+  return NULL;
 }
 
 /**
@@ -3734,33 +3789,13 @@ g_object_weak_unref (GObject    *object,
 		     GWeakNotify notify,
 		     gpointer    data)
 {
-  WeakRefStack *wstack;
-  gboolean found_one = FALSE;
-
   g_return_if_fail (G_IS_OBJECT (object));
   g_return_if_fail (notify != NULL);
 
-  object_bit_lock (object, OPTIONAL_BIT_LOCK_WEAK_REFS);
-  wstack = g_datalist_id_get_data (&object->qdata, quark_weak_notifies);
-  if (wstack)
-    {
-      guint i;
-
-      for (i = 0; i < wstack->n_weak_refs; i++)
-	if (wstack->weak_refs[i].notify == notify &&
-	    wstack->weak_refs[i].data == data)
-	  {
-	    found_one = TRUE;
-	    wstack->n_weak_refs -= 1;
-	    if (i != wstack->n_weak_refs)
-	      wstack->weak_refs[i] = wstack->weak_refs[wstack->n_weak_refs];
-
-	    break;
-	  }
-    }
-  object_bit_unlock (object, OPTIONAL_BIT_LOCK_WEAK_REFS);
-  if (!found_one)
-    g_critical ("%s: couldn't find weak ref %p(%p)", G_STRFUNC, notify, data);
+  _g_datalist_id_update_atomic (&object->qdata,
+                                quark_weak_notifies,
+                                g_object_weak_unref_cb,
+                                ((gpointer[]){ notify, data }));
 }
 
 /**
@@ -4501,7 +4536,7 @@ retry_decrement:
 
   /* The object is almost gone. Finalize. */
 
-  g_datalist_id_set_data (&object->qdata, quark_closure_array, NULL);
+  closure_array_destroy_all (object);
   g_signal_handlers_destroy (object);
   g_datalist_id_set_data (&object->qdata, quark_weak_notifies, NULL);
 
@@ -5219,47 +5254,123 @@ typedef struct {
   GClosure *closures[1]; /* flexible array */
 } CArray;
 
-static void
-object_remove_closure (gpointer  data,
-		       GClosure *closure)
+static gpointer
+object_remove_closure_cb (gpointer *data,
+                          GDestroyNotify *destroy_notify,
+                          gpointer user_data)
 {
-  GObject *object = data;
-  CArray *carray;
+  GClosure *closure = user_data;
+  CArray *carray = *data;
   guint i;
-  
-  object_bit_lock (object, OPTIONAL_BIT_LOCK_CLOSURE_ARRAY);
-  carray = g_object_get_qdata (object, quark_closure_array);
+
   for (i = 0; i < carray->n_closures; i++)
-    if (carray->closures[i] == closure)
-      {
-	carray->n_closures--;
-	if (i < carray->n_closures)
-	  carray->closures[i] = carray->closures[carray->n_closures];
-	object_bit_unlock (object, OPTIONAL_BIT_LOCK_CLOSURE_ARRAY);
-	return;
-      }
-  object_bit_unlock (object, OPTIONAL_BIT_LOCK_CLOSURE_ARRAY);
-  g_assert_not_reached ();
+    {
+      if (carray->closures[i] == closure)
+        {
+          carray->n_closures--;
+          if (carray->n_closures == 0)
+            {
+              g_free (carray);
+              *data = NULL;
+            }
+          else if (i < carray->n_closures)
+            carray->closures[i] = carray->closures[carray->n_closures];
+          return NULL;
+        }
+    }
+
+  g_return_val_if_reached (NULL);
 }
 
 static void
-destroy_closure_array (gpointer data)
+object_remove_closure (gpointer data,
+                       GClosure *closure)
 {
-  CArray *carray = data;
-  GObject *object = carray->object;
-  guint i, n = carray->n_closures;
-  
-  for (i = 0; i < n; i++)
+  GObject *object = data;
+
+  _g_datalist_id_update_atomic (&object->qdata,
+                                quark_closure_array,
+                                object_remove_closure_cb,
+                                closure);
+}
+
+static gpointer
+closure_array_destroy_all_cb (gpointer *data,
+                              GDestroyNotify *destroy_notify,
+                              gpointer user_data)
+{
+  CArray *carray = *data;
+  GClosure *closure;
+
+  if (!carray)
+    return NULL;
+
+  closure = carray->closures[--carray->n_closures];
+
+  if (carray->n_closures == 0)
     {
-      GClosure *closure = carray->closures[i];
-      
-      /* removing object_remove_closure() upfront is probably faster than
-       * letting it fiddle with quark_closure_array which is empty anyways
-       */
+      g_free (carray);
+      *data = NULL;
+    }
+
+  return closure;
+}
+
+static void
+closure_array_destroy_all (GObject *object)
+{
+  GClosure *closure;
+
+  /* We invalidate closures in a loop. As this emits external callbacks, a callee
+   * could register another closure, which the loop would invalidate too.
+   *
+   * This is an intentional choice. Maybe it would be instead better to only
+   * only release the closures that were registered when the loop started. That
+   * would be possible, but is not done that way. */
+  while ((closure = _g_datalist_id_update_atomic (&object->qdata,
+                                                  quark_closure_array,
+                                                  closure_array_destroy_all_cb,
+                                                  NULL)))
+    {
       g_closure_remove_invalidate_notifier (closure, object, object_remove_closure);
       g_closure_invalidate (closure);
     }
-  g_free (carray);
+}
+
+static gpointer
+g_object_watch_closure_cb (gpointer *data,
+                           GDestroyNotify *destroy_notify,
+                           gpointer user_data)
+{
+  GObject *object = ((gpointer *) user_data)[0];
+  GClosure *closure = ((gpointer *) user_data)[1];
+  CArray *carray = *data;
+  guint i;
+
+  if (!carray)
+    {
+      carray = g_new (CArray, 1);
+      carray->object = object;
+      carray->n_closures = 1;
+      i = 0;
+
+#if G_ENABLE_DEBUG
+      /* We never expect there is anything to destroy. We require
+       * these entries to be released via closure_array_destroy_all(). */
+      *destroy_notify = g_destroy_notify_assert_not_reached;
+#endif
+    }
+  else
+    {
+      i = carray->n_closures++;
+      carray = g_realloc (carray, sizeof (*carray) + sizeof (carray->closures[0]) * i);
+    }
+
+  *data = carray;
+
+  carray->closures[i] = closure;
+
+  return NULL;
 }
 
 /**
@@ -5281,36 +5392,21 @@ void
 g_object_watch_closure (GObject  *object,
 			GClosure *closure)
 {
-  CArray *carray;
-  guint i;
-  
   g_return_if_fail (G_IS_OBJECT (object));
   g_return_if_fail (closure != NULL);
   g_return_if_fail (closure->is_invalid == FALSE);
   g_return_if_fail (closure->in_marshal == FALSE);
-  g_return_if_fail (g_atomic_int_get (&object->ref_count) > 0);	/* this doesn't work on finalizing objects */
-  
+  g_return_if_fail (g_atomic_int_get (&object->ref_count) > 0); /* this doesn't work on finalizing objects */
+
   g_closure_add_invalidate_notifier (closure, object, object_remove_closure);
   g_closure_add_marshal_guards (closure,
-				object, (GClosureNotify) g_object_ref,
-				object, (GClosureNotify) g_object_unref);
-  object_bit_lock (object, OPTIONAL_BIT_LOCK_CLOSURE_ARRAY);
-  carray = g_datalist_id_remove_no_notify (&object->qdata, quark_closure_array);
-  if (!carray)
-    {
-      carray = g_renew (CArray, NULL, 1);
-      carray->object = object;
-      carray->n_closures = 1;
-      i = 0;
-    }
-  else
-    {
-      i = carray->n_closures++;
-      carray = g_realloc (carray, sizeof (*carray) + sizeof (carray->closures[0]) * i);
-    }
-  carray->closures[i] = closure;
-  g_datalist_id_set_data_full (&object->qdata, quark_closure_array, carray, destroy_closure_array);
-  object_bit_unlock (object, OPTIONAL_BIT_LOCK_CLOSURE_ARRAY);
+                                object, (GClosureNotify) g_object_ref,
+                                object, (GClosureNotify) g_object_unref);
+
+  _g_datalist_id_update_atomic (&object->qdata,
+                                quark_closure_array,
+                                g_object_watch_closure_cb,
+                                ((gpointer[]){ object, closure }));
 }
 
 /**
