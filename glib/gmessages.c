@@ -2397,7 +2397,7 @@ journal_sendv (struct iovec *iov,
 
   memset (&mh, 0, sizeof (mh));
   mh.msg_name = &sa;
-  mh.msg_namelen = offsetof (struct sockaddr_un, sun_path) + strlen (sa.sun_path);
+  mh.msg_namelen = offsetof (struct sockaddr_un, sun_path) + (socklen_t) strlen (sa.sun_path);
   mh.msg_iov = iov;
   mh.msg_iovlen = iovlen;
 
@@ -2778,6 +2778,8 @@ should_drop_message (GLogLevelFlags   log_level,
 
       if (log_domain == NULL)
         {
+          log_domain_length = 0;
+
           for (i = 0; i < n_fields; i++)
             {
               if (g_strcmp0 (fields[i].key, "GLIB_DOMAIN") == 0)
