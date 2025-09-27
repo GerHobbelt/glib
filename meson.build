@@ -18,7 +18,7 @@ fs = import('fs')
 cc = meson.get_compiler('c')
 c_standards = {}
 
-foreach std : ['89', '99', '11', '17']
+foreach std : ['89', '99', '11', '17', '23']
   arg = (cc.get_id() == 'msvc' ? '/std:' : '-std=') + 'c' + std
   if cc.has_argument(arg)
     c_standards += { std: arg }
@@ -41,7 +41,7 @@ if have_cxx
   cxx = meson.get_compiler('cpp')
   cxx_standards = {}
 
-  foreach std : ['98', '03', '11', '14', '17', '20', '2b', 'latest']
+  foreach std : ['98', '03', '11', '14', '17', '20', '23', '2c', 'latest']
     arg = (cxx.get_id() == 'msvc' ? '/std:' : '-std=') + 'c++' + std
     if cxx.has_argument(arg)
       cxx_standards += { std: arg }
@@ -409,6 +409,7 @@ headers = [
   'fstab.h',
   'ftw.h',
   'grp.h',
+  'intsafe.h',
   'inttypes.h',
   'libproc.h',
   'limits.h',
@@ -424,6 +425,7 @@ headers = [
   'sched.h',
   'spawn.h',
   'stdatomic.h',
+  'stdckdint.h',
   'stdint.h',
   'stdlib.h',
   'string.h',
