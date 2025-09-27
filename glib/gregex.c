@@ -51,41 +51,41 @@
  * Some functions accept a @start_position argument, setting it differs
  * from just passing over a shortened string and setting %G_REGEX_MATCH_NOTBOL
  * in the case of a pattern that begins with any kind of lookbehind assertion.
- * For example, consider the pattern "\Biss\B" which finds occurrences of "iss"
- * in the middle of words. ("\B" matches only if the current position in the
- * subject is not a word boundary.) When applied to the string "Mississipi"
- * from the fourth byte, namely "issipi", it does not match, because "\B" is
+ * For example, consider the pattern `\Biss\B` which finds occurrences of `iss`
+ * in the middle of words. (`\B` matches only if the current position in the
+ * subject is not a word boundary.) When applied to the string `Mississipi`
+ * from the fourth byte, namely `issipi`, it does not match, because `\B` is
  * always false at the start of the subject, which is deemed to be a word
- * boundary. However, if the entire string is passed , but with
- * @start_position set to 4, it finds the second occurrence of "iss" because
+ * boundary. However, if the entire string is passed, but with
+ * @start_position set to 4, it finds the second occurrence of `iss` because
  * it is able to look behind the starting point to discover that it is
  * preceded by a letter.
  *
  * Note that, unless you set the %G_REGEX_RAW flag, all the strings passed
  * to these functions must be encoded in UTF-8. The lengths and the positions
  * inside the strings are in bytes and not in characters, so, for instance,
- * "\xc3\xa0" (i.e. "à") is two bytes long but it is treated as a
+ * `\xc3\xa0` (i.e., `à`) is two bytes long but it is treated as a
  * single character. If you set %G_REGEX_RAW the strings can be non-valid
- * UTF-8 strings and a byte is treated as a character, so "\xc3\xa0" is two
+ * UTF-8 strings and a byte is treated as a character, so `\xc3\xa0` is two
  * bytes and two characters long.
  *
- * When matching a pattern, "\n" matches only against a "\n" character in
- * the string, and "\r" matches only a "\r" character. To match any newline
- * sequence use "\R". This particular group matches either the two-character
- * sequence CR + LF ("\r\n"), or one of the single characters LF (linefeed,
- * U+000A, "\n"), VT vertical tab, U+000B, "\v"), FF (formfeed, U+000C, "\f"),
- * CR (carriage return, U+000D, "\r"), NEL (next line, U+0085), LS (line
+ * When matching a pattern, `\n` matches only against a `\n` character in
+ * the string, and `\r` matches only a `\r` character. To match any newline
+ * sequence use `\R`. This particular group matches either the two-character
+ * sequence CR + LF (`\r\n`), or one of the single characters LF (linefeed,
+ * U+000A, `\n`), VT vertical tab, U+000B, `\v`), FF (formfeed, U+000C, `\f`),
+ * CR (carriage return, U+000D, `\r`), NEL (next line, U+0085), LS (line
  * separator, U+2028), or PS (paragraph separator, U+2029).
  *
  * The behaviour of the dot, circumflex, and dollar metacharacters are
  * affected by newline characters, the default is to recognize any newline
- * character (the same characters recognized by "\R"). This can be changed
+ * character (the same characters recognized by `\R`). This can be changed
  * with `G_REGEX_NEWLINE_CR`, `G_REGEX_NEWLINE_LF` and `G_REGEX_NEWLINE_CRLF`
  * compile options, and with `G_REGEX_MATCH_NEWLINE_ANY`,
  * `G_REGEX_MATCH_NEWLINE_CR`, `G_REGEX_MATCH_NEWLINE_LF` and
  * `G_REGEX_MATCH_NEWLINE_CRLF` match options. These settings are also
  * relevant when compiling a pattern if `G_REGEX_EXTENDED` is set, and an
- * unescaped "#" outside a character class is encountered. This indicates
+ * unescaped `#` outside a character class is encountered. This indicates
  * a comment that lasts until after the next newline.
  *
  * Creating and manipulating the same `GRegex` structure from different
@@ -1445,7 +1445,7 @@ g_match_info_fetch (const GMatchInfo *match_info,
  * @start_pos: (out) (optional): pointer to location where to store
  *     the start position, or %NULL
  * @end_pos: (out) (optional): pointer to location where to store
- *     the end position, or %NULL
+ *     the end position (the byte after the final byte of the match), or %NULL
  *
  * Retrieves the position in bytes of the @match_num'th capturing
  * parentheses. 0 is the full text of the match, 1 is the first
@@ -1454,6 +1454,9 @@ g_match_info_fetch (const GMatchInfo *match_info,
  * If @match_num is a valid sub pattern but it didn't match anything
  * (e.g. sub pattern 1, matching "b" against "(a)?b") then @start_pos
  * and @end_pos are set to -1 and %TRUE is returned.
+ *
+ * As @end_pos is set to the byte after the final byte of the match (on success),
+ * the length of the match can be calculated as `end_pos - start_pos`.
  *
  * If the match was obtained using the DFA algorithm, that is using
  * g_regex_match_all() or g_regex_match_all_full(), the retrieved
@@ -1574,13 +1577,16 @@ g_match_info_fetch_named (const GMatchInfo *match_info,
  * @start_pos: (out) (optional): pointer to location where to store
  *     the start position, or %NULL
  * @end_pos: (out) (optional): pointer to location where to store
- *     the end position, or %NULL
+ *     the end position (the byte after the final byte of the match), or %NULL
  *
  * Retrieves the position in bytes of the capturing parentheses named @name.
  *
  * If @name is a valid sub pattern name but it didn't match anything
  * (e.g. sub pattern `"X"`, matching `"b"` against `"(?P<X>a)?b"`)
  * then @start_pos and @end_pos are set to -1 and %TRUE is returned.
+ *
+ * As @end_pos is set to the byte after the final byte of the match (on success),
+ * the length of the match can be calculated as `end_pos - start_pos`.
  *
  * Returns: %TRUE if the position was fetched, %FALSE otherwise.
  *     If the position cannot be fetched, @start_pos and @end_pos

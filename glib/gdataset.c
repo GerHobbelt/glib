@@ -151,27 +151,19 @@ static GDataset     *g_dataset_cached = NULL; /* should this be
 
 /* --- functions --- */
 
-#define DATALIST_LOCK_BIT 2
-
 G_ALWAYS_INLINE static inline GData *
 g_datalist_lock_and_get (GData **datalist)
 {
   guintptr ptr;
 
-  g_pointer_bit_lock_and_get ((void **) datalist, DATALIST_LOCK_BIT, &ptr);
+  g_pointer_bit_lock_and_get ((void **) datalist, _G_DATALIST_LOCK_BIT, &ptr);
   return G_DATALIST_CLEAN_POINTER (ptr);
-}
-
-static void
-g_datalist_unlock (GData **datalist)
-{
-  g_pointer_bit_unlock ((void **)datalist, DATALIST_LOCK_BIT);
 }
 
 static void
 g_datalist_unlock_and_set (GData **datalist, gpointer ptr)
 {
-  g_pointer_bit_unlock_and_set ((void **) datalist, DATALIST_LOCK_BIT, ptr, G_DATALIST_FLAGS_MASK_INTERNAL);
+  g_pointer_bit_unlock_and_set ((void **) datalist, _G_DATALIST_LOCK_BIT, ptr, G_DATALIST_FLAGS_MASK_INTERNAL);
 }
 
 static gsize
@@ -1070,6 +1062,7 @@ g_datalist_id_remove_no_notify (GData	**datalist,
  * g_datalist_id_update_atomic:
  * @datalist: the data list
  * @key_id: the key to add.
+ * @already_locked: whether the GData lock is already held.
  * @callback: (scope call): callback to update (set, remove, steal, update) the
  *   data.
  * @user_data: the user data for @callback.
@@ -1092,11 +1085,21 @@ g_datalist_id_remove_no_notify (GData	**datalist,
  * value of the function. This is an alternative to returning a result via
  * @user_data.
  *
+ * If @already_locked is TRUE, the caller previously already called
+ * g_datalist_lock(). In that case, g_datalist_id_update_atomic() assumes it
+ * already holds the lock and does not take the lock again. Note that in any
+ * case, at the end g_datalist_id_update_atomic() will always unlock the GData.
+ * This asymmetry is here, because update may reallocate the buffer and it is
+ * more efficient to do when releasing the lock. The few callers that set
+ * @already_locked to TRUE are fine with this asymmetry and anyway want to
+ * unlock afterwards.
+ *
  * Returns: the value returned by @callback.
  */
 gpointer
 g_datalist_id_update_atomic (GData **datalist,
                              GQuark key_id,
+                             gboolean already_locked,
                              GDataListUpdateAtomicFunc callback,
                              gpointer user_data)
 {
@@ -1110,7 +1113,14 @@ g_datalist_id_update_atomic (GData **datalist,
   g_return_val_if_fail (datalist, NULL);
   g_return_val_if_fail (key_id != 0, NULL);
 
-  d = g_datalist_lock_and_get (datalist);
+  if (G_UNLIKELY (already_locked))
+    {
+      d = G_DATALIST_GET_POINTER (datalist);
+    }
+  else
+    {
+      d = g_datalist_lock_and_get (datalist);
+    }
 
   data = datalist_find (d, key_id, &idx);
 
@@ -1429,6 +1439,9 @@ g_datalist_get_data (GData **datalist,
 
   g_return_val_if_fail (datalist != NULL, NULL);
 
+  if (G_UNLIKELY (!key))
+    return NULL;
+
   d = g_datalist_lock_and_get (datalist);
 
   if (!d)
@@ -1442,6 +1455,8 @@ g_datalist_get_data (GData **datalist,
 
       for (i = 0; i < d->len; i++)
         {
+          const char *qstr;
+
           data_elt = &d->data[i];
           /* Here we intentionally compare by strings, instead of calling
            * g_quark_try_string() first.
@@ -1449,7 +1464,8 @@ g_datalist_get_data (GData **datalist,
            * See commit 1cceda49b60b ('Make g_datalist_get_data not look up the
            * quark').
            */
-          if (g_strcmp0 (g_quark_to_string (data_elt->key), key) == 0)
+          qstr = g_quark_to_string (data_elt->key);
+          if (qstr && strcmp (qstr, key) == 0)
             {
               res = data_elt->data;
               goto out;
@@ -1459,7 +1475,7 @@ g_datalist_get_data (GData **datalist,
     }
 
   key_id = g_quark_try_string (key);
-  if (key_id == 0 && key)
+  if (key_id == 0)
     goto out;
 
   data_elt = g_hash_table_lookup (index, &key_id);
