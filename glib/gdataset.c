@@ -301,6 +301,10 @@ datalist_append (GData **data, GQuark key_id, gpointer new_data, GDestroyNotify 
   gboolean reallocated;
   GData *d;
 
+#ifdef G_ENABLE_DEBUG
+  g_assert (key_id != 0);
+#endif
+
   d = *data;
   if (!d)
     {
@@ -612,6 +616,10 @@ g_data_set_internal (GData	  **datalist,
   GData *new_d = NULL;
   GDataElt old, *data;
   guint32 idx;
+
+#ifdef G_ENABLE_DEBUG
+  g_assert (key_id != 0);
+#endif
 
   d = g_datalist_lock_and_get (datalist);
 
@@ -1009,8 +1017,11 @@ g_dataset_id_remove_no_notify (gconstpointer  dataset_location,
 
   g_return_val_if_fail (dataset_location != NULL, NULL);
   
+  if (key_id == 0)
+    return NULL;
+
   G_LOCK (g_dataset_global);
-  if (key_id && g_dataset_location_ht)
+  if (g_dataset_location_ht)
     {
       GDataset *dataset;
   
@@ -1082,8 +1093,6 @@ g_datalist_id_remove_no_notify (GData	**datalist,
  * @user_data.
  *
  * Returns: the value returned by @callback.
- *
- * Since: 2.80
  */
 gpointer
 g_datalist_id_update_atomic (GData **datalist,
@@ -1097,6 +1106,9 @@ g_datalist_id_update_atomic (GData **datalist,
   gpointer result;
   GDestroyNotify new_destroy;
   guint32 idx;
+
+  g_return_val_if_fail (datalist, NULL);
+  g_return_val_if_fail (key_id != 0, NULL);
 
   d = g_datalist_lock_and_get (datalist);
 
@@ -1198,9 +1210,12 @@ g_dataset_id_get_data (gconstpointer  dataset_location,
   gpointer retval = NULL;
 
   g_return_val_if_fail (dataset_location != NULL, NULL);
-  
+
+  if (key_id == 0)
+    return NULL;
+
   G_LOCK (g_dataset_global);
-  if (key_id && g_dataset_location_ht)
+  if (g_dataset_location_ht)
     {
       GDataset *dataset;
       
