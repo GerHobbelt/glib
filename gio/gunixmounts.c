@@ -292,6 +292,7 @@ g_unix_is_mount_path_system_internal (const char *mount_path)
     "/",              /* we already have "Filesystem root" in Nautilus */ 
     "/bin",
     "/boot",
+    "/boot/efi",
     "/compat/linux/proc",
     "/compat/linux/sys",
     "/dev",
@@ -375,7 +376,10 @@ g_unix_is_system_fs_type (const char *fs_type)
     "auto",
     "autofs",
     "autofs4",
+    "binfmt_misc",
+    "bpf",
     "cgroup",
+    "cgroup2",
     "configfs",
     "cxfs",
     "debugfs",
@@ -383,7 +387,10 @@ g_unix_is_system_fs_type (const char *fs_type)
     "devpts",
     "devtmpfs",
     "ecryptfs",
+    "efivarfs",
     "fdescfs",
+    "fuse.gvfsd-fuse",
+    "fuse.portal",
     "fusectl",
     "gfs",
     "gfs2",
@@ -411,6 +418,7 @@ g_unix_is_system_fs_type (const char *fs_type)
     "selinuxfs",
     "sysfs",
     "tmpfs",
+    "tracefs",
     "usbfs",
     NULL
   };

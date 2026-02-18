@@ -25,6 +25,8 @@ fuzz_targets = [
   'fuzz_date_parse',
   'fuzz_date_time_new_from_iso8601',
   'fuzz_dbus_message',
+  'fuzz_filename_from_uri',
+  'fuzz_filename_to_uri',
   'fuzz_get_locale_variants',
   'fuzz_inet_address_mask_new_from_string',
   'fuzz_inet_address_new_from_string',
@@ -47,7 +49,7 @@ fuzz_targets = [
   'fuzz_variant_text',
 ]
 
-deps = [libgmodule_dep, libgio_dep, libglib_dep, libgobject_dep]
+deps = [libgmodule_dep, libgio_dep, libglib_dep, libgobject_dep, app_profile_dep]
 
 extra_sources = []
 extra_c_args = cc.get_supported_arguments('-Werror=unused-function')
