@@ -759,7 +759,6 @@ functions = [
   'strtoll_l',
   'strtoull_l',
   'symlink',
-  'sysinfo',
   'timegm',
   'unsetenv',
   'uselocale',
@@ -821,6 +820,11 @@ endif
 # AIX splice is something else
 if host_system != 'aix'
   functions += ['splice']
+endif
+
+# SVR4 sysinfo() does not behave the same as sysinfo() on other Unixes
+if host_system != 'sunos'
+  functions += ['sysinfo']
 endif
 
 foreach f : functions
@@ -2283,7 +2287,7 @@ subproject('gvdb', default_options: {'tests': false})
 gvdb_dep = dependency('gvdb')
 
 libm = cc.find_library('m', required : false)
-libffi_dep = dependency('libffi', version : '>= 3.0.0')
+libffi_dep = dependency('libffi', version : '>= 3.0.0', default_options: {'werror': false})
 
 libz_dep = dependency('zlib')
 

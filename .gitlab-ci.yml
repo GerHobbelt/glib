@@ -17,12 +17,12 @@ cache:
     - _ccache/
 
 variables:
-  FEDORA_IMAGE: "registry.gitlab.gnome.org/gnome/glib/fedora:v41.0"
+  FEDORA_IMAGE: "registry.gitlab.gnome.org/gnome/glib/fedora:v41.1"
   COVERITY_IMAGE: "registry.gitlab.gnome.org/gnome/glib/coverity:v7"
-  DEBIAN_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable:v23"
-  DEBIAN_I386_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable-i386:v3"
-  ALPINE_IMAGE: "registry.gitlab.gnome.org/gnome/glib/alpine:v7"
-  MINGW_IMAGE: "registry.gitlab.gnome.org/gnome/glib/mingw:v41.0"
+  DEBIAN_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable:v24"
+  DEBIAN_I386_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable-i386:v4"
+  ALPINE_IMAGE: "registry.gitlab.gnome.org/gnome/glib/alpine:v8"
+  MINGW_IMAGE: "registry.gitlab.gnome.org/gnome/glib/mingw:v41.1"
   GOBJECT_INTROSPECTION_TAG: "1.80.1"
   MESON_TEST_TIMEOUT_MULTIPLIER: 4
   G_MESSAGES_DEBUG: all
@@ -562,16 +562,14 @@ cross-mingw64:
 # This policy doesn’t apply to intermittent flaky test failures, only to
 # consistent build failures caused by changed dependencies or build environment.
 msys2-mingw32:
-  # FIXME: Currently disabled because it’s too flaky and keeps failing with
-  # subproject fetch errors
-  # See https://gitlab.gnome.org/GNOME/glib/-/issues/3715
-  when: manual
   extends: .only-default-and-merges
   stage: build
   tags:
     - win32-ps
   needs: []
   variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+    GIT_SUBMODULE_DEPTH: 1
     MSYSTEM: "MINGW32"
     CHERE_INVOKING: "yes"
     COVERAGE: "1"
@@ -603,6 +601,8 @@ msys2-clang64:
     - win32-ps
   needs: []
   variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+    GIT_SUBMODULE_DEPTH: 1
     MSYSTEM: "CLANG64"
     CHERE_INVOKING: "yes"
     PYTHONUTF8: "1"
@@ -795,9 +795,6 @@ freebsd-13-x86_64:
       - "_build/meson-logs"
 
 macos-arm64:
-  # FIXME: Temporarily disabled as the worker has issues creating temporary files
-  # See https://gitlab.gnome.org/Infrastructure/Infrastructure/-/issues/2091
-  when: manual
   extends: .only-default
   stage: build
   tags:
@@ -819,11 +816,13 @@ macos-arm64:
     SDKROOT: /opt/sdks/MacOSX11.3.sdk
     CCACHE_DIR: $CI_PROJECT_DIR/ccache
     CCACHE_MAXSIZE: "200Mi"
+    ORKA_RUNNER: sonoma-2
     # Redirect to the runner's volatile temporary directory which
     # unbreaks a couple of tests.
     TMPDIR: /Volumes/RAM
   before_script:
     - bash .gitlab-ci/show-execution-environment.sh
+    - diskutil erasevolume APFS "RAM" $(diskutil image attach ram://1GiB)
     - python3 -m venv .venv
     - ln -s /opt/ccache/ccache .venv/bin
     - source .venv/bin/activate
@@ -838,7 +837,8 @@ macos-arm64:
             --werror
             _build
     - meson compile -C _build
-    - .gitlab-ci/run-tests.sh
+    # FIXME: Skip the libffi tests as some of them currently fail on macos-arm64
+    - .gitlab-ci/run-tests.sh --no-suite libffi
   artifacts:
     reports:
       junit:
