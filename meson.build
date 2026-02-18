@@ -967,6 +967,10 @@ if cc.has_type('loff_t', prefix: '#include <sys/types.h>')
   glib_conf.set('HAVE_LOFF_T', 1)
 endif
 
+if cc.has_function('unshare', prefix: '#include <sched.h>', args: '-D_GNU_SOURCE')
+  glib_conf.set('HAVE_UNSHARE', 1)
+endif
+
 # Check whether to use statfs or statvfs
 # Some systems have both statfs and statvfs, pick the most "native" for these
 if have_func_statfs and have_func_statvfs
@@ -1885,7 +1889,7 @@ glibconfig_conf.set('gsizebits', sizet_size * 8)
 glibconfig_conf.set('gssizebits', ssizet_size * 8)
 
 # XXX: https://gitlab.gnome.org/GNOME/glib/issues/1413
-if host_system == 'windows'
+if host_system == 'windows' or host_system == 'cygwin'
   g_module_suffix = 'dll'
 else
   g_module_suffix = 'so'
