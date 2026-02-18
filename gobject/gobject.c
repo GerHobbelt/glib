@@ -210,7 +210,7 @@ static GQuark	            quark_weak_notifies = 0;
 static GQuark	            quark_toggle_refs = 0;
 static GQuark               quark_notify_queue;
 static GParamSpecPool      *pspec_pool = NULL; /* atomic */
-static gulong	            gobject_signals[LAST_SIGNAL] = { 0, };
+static unsigned int         gobject_signals[LAST_SIGNAL] = { 0, };
 static guint (*floating_flag_handler) (GObject*, gint) = object_floating_flag_handler;
 static GQuark	            quark_weak_locations = 0;
 
@@ -2582,7 +2582,8 @@ g_object_new_with_custom_constructor (GObjectClass          *class,
     }
 
   /* construct object from construction parameters */
-  object = class->constructor (class->g_type_class.g_type, class->n_construct_properties, cparams);
+  g_assert (class->n_construct_properties <= UINT_MAX);
+  object = class->constructor (class->g_type_class.g_type, (unsigned int) class->n_construct_properties, cparams);
   /* free construction values */
   while (cvals_used--)
     g_value_unset (&cvalues[cvals_used]);
@@ -6187,7 +6188,7 @@ g_weak_ref_clear (GWeakRef *weak_ref)
  * The caller should release the resulting reference in the usual way,
  * by using g_object_unref().
  *
- * Returns: (transfer full) (type GObject.Object): the object pointed to
+ * Returns: (transfer full) (type GObject.Object) (nullable): the object pointed to
  *     by @weak_ref, or %NULL if it was empty
  *
  * Since: 2.32
