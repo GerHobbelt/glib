@@ -805,7 +805,7 @@ typedef enum
 {
   CONVERT_CHECK_NO_NULS_IN_INPUT  = 1 << 0,
   CONVERT_CHECK_NO_NULS_IN_OUTPUT = 1 << 1
-} ConvertCheckFlags;
+} G_GNUC_FLAG_ENUM ConvertCheckFlags;
 
 /*
  * Convert from @string in the encoding identified by @from_codeset,
@@ -1518,18 +1518,13 @@ is_asciialphanum (gunichar c)
   return c <= 0x7F && g_ascii_isalnum (c);
 }
 
-static gboolean
-is_asciialpha (gunichar c)
-{
-  return c <= 0x7F && g_ascii_isalpha (c);
-}
-
 /* allows an empty string */
 static gboolean
 hostname_validate (const char *hostname)
 {
   const char *p;
   gunichar c, first_char, last_char;
+  gboolean no_domain = TRUE;
 
   p = hostname;
   if (*p == '\0')
@@ -1554,7 +1549,8 @@ hostname_validate (const char *hostname)
       
       /* if that was the last label, check that it was a toplabel */
       if (c == '\0' || (c == '.' && *p == '\0'))
-	return is_asciialpha (first_char);
+	return no_domain || is_asciialphanum (first_char);
+      no_domain = FALSE;
     }
   while (c == '.');
   return FALSE;
