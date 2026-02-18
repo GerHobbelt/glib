@@ -78,6 +78,7 @@ glib_tests = {
     'link_args' : cc.get_id() == 'gcc' and cc.version().version_compare('> 6')
       ? ['-Wno-alloc-size-larger-than'] : [],
   },
+  'monotonic-time' : {},
   'mutex' : {},
   'node' : {},
   'once' : {},
@@ -271,7 +272,7 @@ else
                                       install_tag : 'tests',
                                       install: installed_tests_enabled)
 
-    if host_system not in ['ios', 'darwin']
+    if host_system != 'darwin'
       var_preload = 'LD_PRELOAD'
     else
       var_preload = 'DYLD_INSERT_LIBRARIES'
