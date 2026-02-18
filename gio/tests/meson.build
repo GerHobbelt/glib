@@ -370,13 +370,6 @@ if host_machine.system() != 'windows'
         'install' : false,
         'extra_programs' : ['appinfo-test'],
       },
-      'desktop-app-info' : {
-        'install' : false,
-        'depends' : gio_launch_desktop,
-        'extra_programs' : ['apps', 'appinfo-test'],
-        # FIXME: https://gitlab.gnome.org/GNOME/glib/-/issues/3148
-        'can_fail' : host_system == 'gnu',
-      },
     }
   endif
 
@@ -384,6 +377,7 @@ if host_machine.system() != 'windows'
     'basic-application' : {},
     'dbus-launch' : {},
     'appinfo-test' : {},
+    'snapinfo-test' : {},
   }
 
   if not glib_have_cocoa
@@ -602,15 +596,33 @@ if host_machine.system() != 'windows'
                    '--c-namespace', 'Fake',
                    '@INPUT@'])
 
+    fake_document_portal_sources = [
+      'fake-document-portal.c',
+      fake_document_portal_generated,
+      'fake-desktop-portal.c',
+      fake_openuri_portal_generated,
+      fake_request_portal_generated,
+    ]
+
     if not glib_have_cocoa
       gio_tests += {
+        'documentportal' : {
+          'extra_sources' : [
+            extra_sources,
+            document_portal_sources,
+            fake_document_portal_sources,
+          ],
+        },
         'dbus-appinfo' : {
-          'extra_sources' : [extra_sources,
-                             'fake-document-portal.c',
-                             fake_document_portal_generated,
-                             'fake-desktop-portal.c',
-                             fake_openuri_portal_generated,
-                             fake_request_portal_generated],
+          'extra_sources' : [extra_sources, fake_document_portal_sources],
+        },
+        'desktop-app-info' : {
+          'install' : false,
+          'depends' : gio_launch_desktop,
+          'extra_programs' : ['apps', 'appinfo-test', 'snapinfo-test'],
+          # FIXME: https://gitlab.gnome.org/GNOME/glib/-/issues/3148
+          'can_fail' : host_system == 'gnu',
+          'extra_sources' : [extra_sources, fake_document_portal_sources],
         },
       }
     endif
@@ -740,6 +752,7 @@ appinfo_test_desktop_files = [
   'appinfo-test-path',
   'appinfo-test',
   'appinfo-test2',
+  'snap-app_appinfo-test',
 ]
 
 foreach appinfo_test_desktop_file : appinfo_test_desktop_files
@@ -779,6 +792,7 @@ if installed_tests_enabled
     'file.c',
     'org.gtk.test.dbusappinfo.desktop',
     'org.gtk.test.dbusappinfo.flatpak.desktop',
+    'org.gtk.test.dbusappinfo.snap.desktop',
     'test1.overlay',
     install_dir : installed_tests_execdir,
     install_tag : 'tests',

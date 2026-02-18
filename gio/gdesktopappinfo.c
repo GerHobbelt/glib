@@ -461,6 +461,7 @@ const char * const exec_key_match_blocklist[] = {
   "bash",
   "env",
   "flatpak",
+  "snap",
   "gjs",
   "pkexec",
   "python",
@@ -2388,7 +2389,7 @@ g_desktop_app_info_get_categories (GDesktopAppInfo *info)
  *
  * Gets the keywords from the desktop file.
  *
- * Returns: (transfer none): The value of the
+ * Returns: (nullable) (array zero-terminated=1) (transfer none): The value of the
  *   [`Keywords` key](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s06.html#key-keywords)
  *
  * Since: 2.32
@@ -2950,6 +2951,7 @@ g_desktop_app_info_launch_uris_with_spawn (GDesktopAppInfo            *info,
   gboolean completed = FALSE;
   GList *old_uris;
   GList *dup_uris;
+  GList *ruris = NULL;
 
   char **argv, **envp;
   int argc;
@@ -2962,6 +2964,30 @@ g_desktop_app_info_launch_uris_with_spawn (GDesktopAppInfo            *info,
     envp = g_app_launch_context_get_environment (launch_context);
   else
     envp = g_get_environ ();
+
+#ifdef G_OS_UNIX
+  if (uris && info->keyfile)
+    {
+      char *snap_instance;
+      char *app_id = NULL;
+
+      snap_instance = g_desktop_app_info_get_string (info, "X-SnapInstanceName");
+
+      if (snap_instance && *snap_instance)
+        app_id = g_strconcat ("snap.", snap_instance, NULL);
+
+      g_free (snap_instance);
+
+      if (app_id)
+        {
+          ruris = g_document_portal_add_documents (uris, app_id, NULL);
+          if (ruris != NULL)
+            uris = ruris;
+        }
+
+      g_clear_pointer (&app_id, g_free);
+    }
+#endif
 
   /* The GList* passed to expand_application_parameters() will be modified
    * internally by expand_macro(), so we need to pass a copy of it instead,
@@ -3152,6 +3178,7 @@ g_desktop_app_info_launch_uris_with_spawn (GDesktopAppInfo            *info,
  out:
   g_strfreev (argv);
   g_strfreev (envp);
+  g_list_free_full (ruris, g_free);
 
   return completed;
 }
@@ -3337,12 +3364,27 @@ g_desktop_app_info_launch_uris_with_dbus (GDesktopAppInfo    *info,
 
 #ifdef G_OS_UNIX
   app_id = g_desktop_app_info_get_string (info, "X-Flatpak");
+
+  if (!app_id)
+    {
+      char *snap_instance;
+
+      snap_instance = g_desktop_app_info_get_string (info, "X-SnapInstanceName");
+
+      if (snap_instance && *snap_instance)
+        app_id = g_strconcat ("snap.", snap_instance, NULL);
+
+      g_free (snap_instance);
+    }
+
   if (app_id && *app_id)
     {
       ruris = g_document_portal_add_documents (uris, app_id, NULL);
       if (ruris == NULL)
         ruris = uris;
     }
+
+  g_clear_pointer (&app_id, g_free);
 #endif
 
   launch_uris_with_dbus (info, session_bus, ruris, launch_context,
@@ -3350,8 +3392,6 @@ g_desktop_app_info_launch_uris_with_dbus (GDesktopAppInfo    *info,
 
   if (ruris != uris)
     g_list_free_full (ruris, g_free);
-
-  g_free (app_id);
 
   return TRUE;
 }
@@ -5078,7 +5118,7 @@ g_desktop_app_info_get_boolean (GDesktopAppInfo *info,
  *
  * The @key is looked up in the `Desktop Entry` group.
  *
- * Returns: (array zero-terminated=1 length=length) (element-type utf8) (transfer full):
+ * Returns: (nullable) (array zero-terminated=1 length=length) (element-type utf8) (transfer full):
  *   a `NULL`-terminated string array or `NULL` if the specified
  *   key cannot be found. The array should be freed with [func@GLib.strfreev].
  *

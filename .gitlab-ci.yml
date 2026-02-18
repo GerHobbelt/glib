@@ -17,12 +17,12 @@ cache:
     - _ccache/
 
 variables:
-  FEDORA_IMAGE: "registry.gitlab.gnome.org/gnome/glib/fedora:v39.5"
+  FEDORA_IMAGE: "registry.gitlab.gnome.org/gnome/glib/fedora:v41.0"
   COVERITY_IMAGE: "registry.gitlab.gnome.org/gnome/glib/coverity:v7"
   DEBIAN_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable:v23"
   DEBIAN_I386_IMAGE: "registry.gitlab.gnome.org/gnome/glib/debian-stable-i386:v3"
   ALPINE_IMAGE: "registry.gitlab.gnome.org/gnome/glib/alpine:v7"
-  MINGW_IMAGE: "registry.gitlab.gnome.org/gnome/glib/mingw:v39.5"
+  MINGW_IMAGE: "registry.gitlab.gnome.org/gnome/glib/mingw:v41.0"
   GOBJECT_INTROSPECTION_TAG: "1.80.1"
   MESON_TEST_TIMEOUT_MULTIPLIER: 4
   G_MESSAGES_DEBUG: all
@@ -562,6 +562,10 @@ cross-mingw64:
 # This policy doesn’t apply to intermittent flaky test failures, only to
 # consistent build failures caused by changed dependencies or build environment.
 msys2-mingw32:
+  # FIXME: Currently disabled because it’s too flaky and keeps failing with
+  # subproject fetch errors
+  # See https://gitlab.gnome.org/GNOME/glib/-/issues/3715
+  when: manual
   extends: .only-default-and-merges
   stage: build
   tags:
@@ -791,6 +795,9 @@ freebsd-13-x86_64:
       - "_build/meson-logs"
 
 macos-arm64:
+  # FIXME: Temporarily disabled as the worker has issues creating temporary files
+  # See https://gitlab.gnome.org/Infrastructure/Infrastructure/-/issues/2091
+  when: manual
   extends: .only-default
   stage: build
   tags:
