@@ -1130,6 +1130,7 @@ validate_pspec_to_install (GParamSpec *pspec)
 
   g_return_val_if_fail (pspec->flags & (G_PARAM_READABLE | G_PARAM_WRITABLE), FALSE);
 
+#ifndef G_DISABLE_CHECKS
   if ((pspec->flags & G_PARAM_CONSTRUCT) && (pspec->flags & G_PARAM_CONSTRUCT_ONLY))
     {
       g_critical ("%s: property '%s' cannot have both G_PARAM_CONSTRUCT and "
@@ -1137,9 +1138,10 @@ validate_pspec_to_install (GParamSpec *pspec)
                   G_STRFUNC, pspec->name);
       return FALSE;
     }
+#endif
 
-  if (pspec->flags & (G_PARAM_CONSTRUCT | G_PARAM_CONSTRUCT_ONLY))
-    g_return_val_if_fail (pspec->flags & G_PARAM_WRITABLE, FALSE);
+  g_return_val_if_fail (!(pspec->flags & (G_PARAM_CONSTRUCT | G_PARAM_CONSTRUCT_ONLY)) ||
+                        (pspec->flags & G_PARAM_WRITABLE), FALSE);
 
   return TRUE;
 }
@@ -1159,10 +1161,8 @@ validate_and_install_class_property (GObjectClass *class,
       return FALSE;
     }
 
-  if (pspec->flags & G_PARAM_WRITABLE)
-    g_return_val_if_fail (class->set_property != NULL, FALSE);
-  if (pspec->flags & G_PARAM_READABLE)
-    g_return_val_if_fail (class->get_property != NULL, FALSE);
+  g_return_val_if_fail (!(pspec->flags & G_PARAM_WRITABLE) || class->set_property != NULL, FALSE);
+  g_return_val_if_fail (!(pspec->flags & G_PARAM_READABLE) || class->get_property != NULL, FALSE);
 
   class->flags |= CLASS_HAS_PROPS_FLAG;
   if (install_property_internal (oclass_type, property_id, pspec))
