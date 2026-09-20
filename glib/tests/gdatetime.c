@@ -227,6 +227,7 @@ test_GDateTime_compare (void)
 {
   GDateTime *dt1, *dt2;
   gint       i;
+  GTimeZone *utc_plus_one = g_time_zone_new_identifier ("+01:00");
 
   dt1 = g_date_time_new_utc (2000, 1, 1, 0, 0, 0);
 
@@ -248,6 +249,13 @@ test_GDateTime_compare (void)
   dt2 = g_date_time_new_utc (2000, 1, 1, 0, 0, 0);
   g_assert_cmpint (0, ==, g_date_time_compare (dt1, dt2));
   g_date_time_unref (dt2);
+
+  /* Check that the same instant in a different time zone compares equal too */
+  dt2 = g_date_time_new (utc_plus_one, 2000, 1, 1, 1, 0, 0);
+  g_assert_cmpint (0, ==, g_date_time_compare (dt1, dt2));
+  g_date_time_unref (dt2);
+
+  g_time_zone_unref (utc_plus_one);
   g_date_time_unref (dt1);
 }
 
@@ -3524,7 +3532,7 @@ mkdir_localtime_root (GError **error)
 {
   size_t len;
   char *root, *path;
-  char *contents;
+  char *contents = NULL;
 
   root = g_dir_make_tmp ("glib-localtime-root-XXXXXXX", error);
   if (!root)
@@ -3566,10 +3574,12 @@ mkdir_localtime_root (GError **error)
   path = g_build_filename (root, "usr", "share", "zoneinfo", "Europe", "Zurich", NULL);
   if (!g_file_set_contents (path, contents, len, error))
     {
+      g_free (contents);
       g_free (path);
       g_free (root);
       return NULL;
     }
+  g_free (contents);
   g_free (path);
 
   return root;
