@@ -1113,6 +1113,7 @@ g_variant_lookup_value (GVariant           *dictionary,
  * In particular, arrays of these fixed-sized types can be interpreted
  * as an array of the given C type, with @element_size set to the size
  * the appropriate type:
+ *
  * - %G_VARIANT_TYPE_INT16 (etc.): #gint16 (etc.)
  * - %G_VARIANT_TYPE_BOOLEAN: #guchar (not #gboolean!)
  * - %G_VARIANT_TYPE_BYTE: #guint8
@@ -2989,7 +2990,7 @@ g_variant_iter_new (GVariant *value)
 {
   GVariantIter *iter;
 
-  iter = (GVariantIter *) g_slice_new (struct heap_iter);
+  iter = g_slice_new (GVariantIter);
   GVHI(iter)->value_ref = g_variant_ref (value);
   GVHI(iter)->magic = GVHI_MAGIC;
 
@@ -3099,7 +3100,7 @@ g_variant_iter_free (GVariantIter *iter)
   g_variant_unref (GVHI(iter)->value_ref);
   GVHI(iter)->magic = 0;
 
-  g_slice_free (struct heap_iter, GVHI(iter));
+  g_slice_free (GVariantIter, iter);
 }
 
 /**
